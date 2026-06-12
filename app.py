@@ -10,13 +10,8 @@ Image.MAX_IMAGE_PIXELS = None
 
 @hydra.main(version_base=None, config_path=".", config_name="config")
 def main(cfg):
-    llm_choices = [
-        "gemini-2.5-pro",
-        "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
-        "gemini-2.0-flash",
-        "gemini-2.0-flash-lite",
-    ]
+    with open("webapp_supported_models.txt", "r") as f:
+        llm_choices = f.read().strip().splitlines()
 
     def get_common_inputs():
         return [
@@ -25,7 +20,7 @@ def main(cfg):
             gr.Slider(label="Box Threshold", minimum=0.0, maximum=1.0, value=cfg.preprocessors.grounding_dino.box_threshold, step=0.01),
             gr.Slider(label="Text Threshold", minimum=0.0, maximum=1.0, value=cfg.preprocessors.grounding_dino.text_threshold, step=0.01),
             gr.Textbox(label="Label Detection Prompt", value=cfg.preprocessors.grounding_dino.prompt, lines=7),
-            gr.Dropdown(label="LLM Model", choices=llm_choices, value=cfg.llm.model_name),
+            gr.Dropdown(label="LLM Model", choices=llm_choices, value=llm_choices[0]),
             gr.Slider(label="Resize Size (px)", minimum=512, maximum=4096, value=4096, step=64, info="If the image is larger than this, the longer side will be resized to fit the specified resolution, keeping the aspect ratio. Higher resolutions typically generate better results, but can increase traffic and cost."),
             gr.Slider(label="Temperature", minimum=0.0, maximum=2.0, value=getattr(cfg.llm, "temperature", 0.7), step=0.01, info="Determines the determinism of the LLVM, where higher values mean that the model is more \"creative\" (values up to 2.0), while lower values result in the model being more deterministic and reproducible (down to 0)."),
         ]
