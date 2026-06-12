@@ -576,6 +576,22 @@ class TestInitializeLLM(unittest.TestCase):
         mock_groq.assert_called_once()
         self.assertIsNotNone(llm)
 
+    @patch("utils.extract_utils.OllamaModel")
+    def test_initialize_llm_ollama_local(self, mock_ollama):
+        """Test initializing local Ollama model."""
+        mock_cfg = OmegaConf.create({
+            "llm": {
+                "model_name": "ollama-local:llama2",
+            },
+            "rate_limit_wait": True,
+        })
+
+        pipeline = ExtractionPipeline(mock_cfg)
+        llm = pipeline.llm
+
+        mock_ollama.assert_called_once()
+        self.assertIsNotNone(llm)
+
     def test_initialize_llm_unsupported(self):
         """Test that unsupported models raise ValueError."""
         mock_cfg = OmegaConf.create({
