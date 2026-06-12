@@ -2,6 +2,7 @@ import os
 import math
 import hydra
 import hashlib
+import traceback
 import pandas as pd
 
 from PIL import Image
@@ -77,6 +78,7 @@ def main(cfg: DictConfig):
             results.extend(sub_results)
         except Exception as e:
             print(f"Error processing batch {batch_idx + 1}: {e}")
+            traceback.print_exc()
             return
 
     # Save results to CSV

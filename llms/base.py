@@ -6,11 +6,12 @@ class LLMBase(ABC):
     CLIENT_ERROR = None # Class for API client errors, to be defined in subclasses
     SERVER_ERROR = None # Class for API server errors, to be defined in subclasses
 
-    def __init__(self, model_name: str, rate_limit_wait: bool = False, retries_on_error: int = 10, temperature: float = None):
+    def __init__(self, model_name: str, rate_limit_wait: bool = False, retries_on_error: int = 10, temperature: float = None, remote_server: str = None):
         self.model_name = model_name
         self.rate_limit_wait = rate_limit_wait
         self.retries_on_error = retries_on_error
         self.temperature = temperature
+        self.remote_server = remote_server # Only used for some models like Ollama, but stored here for easy access in subclasses
 
     def prompt(self, prompt: list, on_error_fn=None) -> str:
         prepared_prompt = self._prepare_prompt(prompt)

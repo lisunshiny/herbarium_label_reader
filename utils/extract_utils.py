@@ -8,7 +8,7 @@ from pathlib import Path
 from PIL import Image
 from omegaconf import DictConfig
 
-from llms import GeminiModel, OpenAIModel, GroqModel
+from llms import GeminiModel, OpenAIModel, GroqModel, OllamaModel
 from preprocessors import GroundingDinoPreprocessor
 
 
@@ -79,34 +79,28 @@ class ExtractionPipeline:
             raise ValueError("cfg.llm.model_name is required to initialize LLM")
 
         def _try_construct(model_cls, **kwargs):
-            """Try to construct model with given kwargs, fall back to minimal args."""
-            try:
-                return model_cls(**kwargs)
-            except TypeError:
-                # Fall back to minimal constructor
-                allowed = {}
-                if "model_name" in kwargs:
-                    allowed["model_name"] = kwargs["model_name"]
-                if "rate_limit_wait" in kwargs:
-                    allowed["rate_limit_wait"] = kwargs["rate_limit_wait"]
-                if "temperature" in kwargs:
-                    allowed["temperature"] = kwargs["temperature"]
-                return model_cls(**allowed)
+            print(f"Initializing {model_cls.__name__} with args: {kwargs}")
+            return model_cls(**kwargs)
 
         # Build kwargs from config
-        kwargs = {"model_name": model_name}
-        if getattr(self.cfg, "rate_limit_wait", None) is not None:
-            kwargs["rate_limit_wait"] = self.cfg.rate_limit_wait
-        if getattr(self.cfg.llm, "temperature", None) is not None:
+        kwargs = {
+            "model_name": model_name,
+            "rate_limit_wait": self.cfg.rate_limit_wait,
+            "remote_server": self.cfg.llm.remote_server,
+        }
+
+        if self.cfg.llm.temperature is not None:
             kwargs["temperature"] = self.cfg.llm.temperature
 
         # Instantiate the appropriate model
-        if model_name.startswith("gemini"):
+        if model_name.startswith("gemini") or model_name.startswith("gemma"):
             self.llm = _try_construct(GeminiModel, **kwargs)
         elif model_name.startswith("gpt"):
             self.llm = _try_construct(OpenAIModel, **kwargs)
         elif model_name.startswith("llama"):
             self.llm = _try_construct(GroqModel, **kwargs)
+        elif model_name.startswith("ollama"):
+            self.llm = _try_construct(OllamaModel, **kwargs)
         else:
             raise ValueError(f"Unsupported LLM model: {model_name}")
 
@@ -334,6 +328,6 @@ class ExtractionPipeline:
                         continue
                     else:
                         # Raise if out of retries or we shouldn't wait
-                        raise
+                        raise e
 
         return results, preprocessed_images
