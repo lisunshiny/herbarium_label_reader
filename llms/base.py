@@ -30,6 +30,16 @@ class LLMBase(ABC):
                     time.sleep(backoff)
                     backoff = min(backoff * 2, 3600)  # Exponential backoff
                     continue
+                # In cse the client and server error classes are the same, check for and handle server errors here as well
+                elif isinstance(e, self.SERVER_ERROR) and self.get_api_error_status_code(e) >= 500:
+                    print(f"Internal server error: {e}. Retrying in {backoff} seconds... ({n_retries - 1} left)")
+                    if on_error_fn:
+                        on_error_fn(e, f"Internal server error: {e}. Retrying in {backoff} seconds... ({n_retries - 1} left)")
+                    time.sleep(backoff)
+                    backoff = min(backoff * 2, 3600)  # Exponential backoff
+
+                    n_retries -= 1
+                    continue
                 else:
                     raise e
             except self.SERVER_ERROR as e:
