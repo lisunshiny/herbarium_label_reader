@@ -1,6 +1,6 @@
 # Herbarium Label Reader
 
-A project for digitizing herbarium specimen labels by combining modern visual grounding and large language models in a single extraction pipeline. The system uses zero-shot object localization (Grounding DINO) to find label regions and large language-and-vision models (LLVMs) to extract and structure textual information from those regions. Supported providers in the codebase include Google (Gemini via google-genai), OpenAI (GPT family), and Groq (LLaMA-family models served via the Groq API).
+A project for digitizing herbarium specimen labels by combining modern visual grounding and large language models in a single extraction pipeline. The system uses zero-shot object localization (Grounding DINO) to find label regions and large language-and-vision models (LLVMs) to extract and structure textual information from those regions. Supported providers in the codebase include Google (Gemini via google-genai), OpenAI (GPT family), Groq (LLaMA-family models served via the Groq API), and Ollama (local or remote Ollama-hosted models).
 
 ## Key Features
 
@@ -21,7 +21,7 @@ herbarium_label_reader/
 ├── run_experiments.sh     # Example hydra multirun invocation
 ├── webapp/                # Webapp helpers (process_request.py)
 ├── preprocessors/         # Preprocessor implementations (Grounding DINO)
-├── llms/                  # Wrappers for Gemini/OpenAI/Groq (LLaMA via Groq API) models
+├── llms/                  # Wrappers for Gemini/OpenAI/Groq/Ollama models
 ├── requirements.txt
 └── config.yaml            # Default hydra configuration
 ```
@@ -68,6 +68,11 @@ You can run a single extraction job (no sweep) by calling the script with hydra 
 
 ```bash
 python extract_data.py dataset_path=/absolute/path/to/dataset image_list=data/handwritten.txt n_images=50 llm.model_name=gemini-2.5-pro
+
+# Or use Ollama models:
+python extract_data.py dataset_path=/absolute/path/to/dataset image_list=data/handwritten.txt n_images=50 llm.model_name=ollama:gemma4:31b
+# Or remote Ollama server:
+python extract_data.py dataset_path=/absolute/path/to/dataset image_list=data/handwritten.txt n_images=50 llm.model_name=ollama:gemma4:31b remote_server=http://localhost:11434
 ```
 The script saves a CSV named `extracted_data.csv` inside the hydra-run output directory.
 
