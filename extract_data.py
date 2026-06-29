@@ -74,7 +74,7 @@ def main(cfg: DictConfig):
         print(f"\nProcessing batch {batch_idx + 1}: {batch_image_paths}")
 
         try:
-            sub_results = pipeline(batch_full_paths)
+            sub_results = pipeline(batch_full_paths)[0] # Only the results, not the preprocessed images
             results.extend(sub_results)
         except Exception as e:
             print(f"Error processing batch {batch_idx + 1}: {e}")
