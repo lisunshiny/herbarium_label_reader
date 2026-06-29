@@ -1,11 +1,5 @@
 import base64
 import io
-import json
-import shutil
-import subprocess
-import urllib.error
-import urllib.parse
-import urllib.request
 from ollama import Client, ResponseError
 from PIL import Image
 
@@ -24,6 +18,7 @@ def wrap_prompt(prompt: list) -> list:
 
     for d in prompt:
         if isinstance(d, Image.Image):
+            print("Image size:", d.size)
             image_data.append(encode_image(d))
         else:
             text_data += str(d) + "\n"
@@ -62,7 +57,9 @@ class OllamaModel(LLMBase):
         if not self.remote_server:
             raise ValueError("Ollama server URL is not configured for remote Ollama requests.")
 
-        options = {}
+        options = {
+            "num_ctx": 32768,
+        }
 
         if self.temperature is not None:
             options["temperature"] = self.temperature
