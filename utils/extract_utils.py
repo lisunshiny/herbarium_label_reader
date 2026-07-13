@@ -8,7 +8,7 @@ from pathlib import Path
 from PIL import Image
 from omegaconf import DictConfig
 
-from llms import GeminiModel, OpenAIModel, GroqModel, OllamaModel
+from llms import GeminiModel, OpenAIModel, GroqModel, OllamaModel, VLLMModel, HuggingFaceModel
 from preprocessors import GroundingDinoPreprocessor
 
 
@@ -74,23 +74,25 @@ class ExtractionPipeline:
         Raises:
             ValueError: If model_name is not set or unsupported
         """
-        model_name = self.cfg.llm.model_name if getattr(self.cfg, "llm", None) else None
+        llm_cfg = getattr(self.cfg, "llm", None)
+        model_name = llm_cfg.model_name if llm_cfg else None
         if model_name is None:
             raise ValueError("cfg.llm.model_name is required to initialize LLM")
 
         def _try_construct(model_cls, **kwargs):
-            print(f"Initializing {model_cls.__name__} with args: {kwargs}")
+            class_name = getattr(model_cls, "__name__", type(model_cls).__name__)
+            print(f"Initializing {class_name} with args: {kwargs}")
             return model_cls(**kwargs)
 
         # Build kwargs from config
         kwargs = {
             "model_name": model_name,
-            "rate_limit_wait": self.cfg.rate_limit_wait,
-            "remote_server": self.cfg.llm.remote_server,
+            "rate_limit_wait": getattr(self.cfg, "rate_limit_wait", False),
+            "remote_server": getattr(llm_cfg, "remote_server", None),
         }
 
-        if self.cfg.llm.temperature is not None:
-            kwargs["temperature"] = self.cfg.llm.temperature
+        if getattr(llm_cfg, "temperature", None) is not None:
+            kwargs["temperature"] = llm_cfg.temperature
 
         # Instantiate the appropriate model
         if model_name.startswith("gemini") or model_name.startswith("gemma"):
@@ -101,6 +103,10 @@ class ExtractionPipeline:
             self.llm = _try_construct(GroqModel, **kwargs)
         elif model_name.startswith("ollama"):
             self.llm = _try_construct(OllamaModel, **kwargs)
+        elif model_name.startswith("vllm"):
+            self.llm = _try_construct(VLLMModel, **kwargs)
+        elif model_name.startswith("hf"):
+            self.llm = _try_construct(HuggingFaceModel, **kwargs)
         else:
             raise ValueError(f"Unsupported LLM model: {model_name}")
 

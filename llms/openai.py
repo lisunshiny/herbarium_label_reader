@@ -1,7 +1,8 @@
 import io
 import base64
+import os
 from PIL import Image
-from openai import OpenAI, APIStatusError, InternalServerError
+from openai import OpenAI, APIStatusError, InternalServerError, api_key
 
 from .base import LLMBase
 
@@ -37,8 +38,9 @@ class OpenAIModel(LLMBase):
     SERVER_ERROR = InternalServerError
 
     def __init__(self, *args, **kwargs):
+        base_url = kwargs.pop("base_url", None)
         super().__init__(*args, **kwargs)
-        self.client = OpenAI()
+        self.client = OpenAI(base_url=base_url)
 
     def _prepare_prompt(self, prompt: list) -> dict:
         return {
@@ -53,6 +55,7 @@ class OpenAIModel(LLMBase):
             model=self.model_name,
             temperature=self.temperature,
             **prepared_prompt,
+            **self.options,
         ).output_text
 
     def get_api_error_status_code(self, error: Exception) -> int:

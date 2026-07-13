@@ -45,6 +45,7 @@ class GeminiModel(LLMBase):
             model=self.model_name,
             config={
                 "temperature": self.temperature,
+                **self.options,
             },
             **prepared_prompt,
         ).text

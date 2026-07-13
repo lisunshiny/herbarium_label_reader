@@ -61,6 +61,7 @@ class GroqModel(LLMBase):
             model=self.model_name,
             temperature=self.temperature,
             **prepared_prompt,
+            **self.options,
         ).choices[0].message.content
 
     def get_api_error_status_code(self, error: Exception) -> int:

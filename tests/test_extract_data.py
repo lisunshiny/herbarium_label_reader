@@ -592,6 +592,22 @@ class TestInitializeLLM(unittest.TestCase):
         mock_ollama.assert_called_once()
         self.assertIsNotNone(llm)
 
+    @patch("utils.extract_utils.VLLMModel")
+    def test_initialize_llm_vllm(self, mock_vllm):
+        """Test initializing a vLLM model."""
+        mock_cfg = OmegaConf.create({
+            "llm": {
+                "model_name": "vllm:meta-llama/Llama-3.1-8B-Instruct",
+            },
+            "rate_limit_wait": True,
+        })
+
+        pipeline = ExtractionPipeline(mock_cfg)
+        llm = pipeline.llm
+
+        mock_vllm.assert_called_once()
+        self.assertIsNotNone(llm)
+
     def test_initialize_llm_unsupported(self):
         """Test that unsupported models raise ValueError."""
         mock_cfg = OmegaConf.create({

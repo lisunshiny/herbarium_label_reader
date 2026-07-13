@@ -59,6 +59,7 @@ class OllamaModel(LLMBase):
 
         options = {
             "num_ctx": 32768,
+            **self.options,
         }
 
         if self.temperature is not None:
