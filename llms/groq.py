@@ -46,7 +46,7 @@ class GroqModel(LLMBase):
         if model_name in PREFIXES:
             model_name = PREFIXES[model_name] + model_name
         super().__init__(model_name, *args, **kwargs)
-        self.client = Groq()
+        self.client = Groq(**self.init_options)
 
     def _prepare_prompt(self, prompt: list) -> dict:
         return {
@@ -61,7 +61,8 @@ class GroqModel(LLMBase):
             model=self.model_name,
             temperature=self.temperature,
             **prepared_prompt,
-            **self.options,
+            **self.template_options,
+            **self.generate_options,
         ).choices[0].message.content
 
     def get_api_error_status_code(self, error: Exception) -> int:

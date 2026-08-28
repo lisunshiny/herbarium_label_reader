@@ -27,7 +27,7 @@ class GeminiModel(LLMBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.client = genai.Client()
+        self.client = genai.Client(**self.init_options)
 
     def _prepare_prompt(self, prompt: list) -> dict:
         return {
@@ -45,7 +45,8 @@ class GeminiModel(LLMBase):
             model=self.model_name,
             config={
                 "temperature": self.temperature,
-                **self.options,
+                **self.template_options,
+                **self.generate_options,
             },
             **prepared_prompt,
         ).text

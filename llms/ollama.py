@@ -42,7 +42,7 @@ class OllamaModel(LLMBase):
 
         self.model_id, self.mode = self._parse_model_name(model_name)
 
-        self.client = Client(host=self.remote_server)
+        self.client = Client(host=self.remote_server, **self.init_options)
 
     def _parse_model_name(self, model_name: str):
         model_id = model_name.split("ollama:", 1)[1]
@@ -59,7 +59,7 @@ class OllamaModel(LLMBase):
 
         options = {
             "num_ctx": 32768,
-            **self.options,
+            **self.generate_options,
         }
 
         if self.temperature is not None:
@@ -70,6 +70,7 @@ class OllamaModel(LLMBase):
             messages=prepared_prompt["messages"],
             options=options,
             stream=False,
+            **self.template_options,
         )
 
         return response.message.content

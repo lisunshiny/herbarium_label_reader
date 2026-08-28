@@ -1,5 +1,7 @@
 #!/bin/bash
 
+cd ..
+
 python extract_data.py \
     --multirun \
     image_list=data/handwritten.txt,data/printed.txt \

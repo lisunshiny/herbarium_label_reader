@@ -82,7 +82,8 @@ class HuggingFaceModel(LLMBase):
 
         self.processor = AutoProcessor.from_pretrained(
             model_id,
-            **additional_params
+            **additional_params,
+            **self.init_options,
         )
         self.model = AutoModelForCausalLM.from_pretrained(
             model_id,
@@ -107,18 +108,19 @@ class HuggingFaceModel(LLMBase):
         prompt = prepared_prompt["prompt"]
         images = prepared_prompt["images"]
 
-        opts = {**self.options}
+        # opts = {**self.options}
 
-        max_soft_tokens = opts.pop("max_soft_tokens", 1120)
+        # max_soft_tokens = opts.pop("max_soft_tokens", 1120)
 
-        self.processor.max_soft_tokens = max_soft_tokens
+        # self.processor.max_soft_tokens = max_soft_tokens
 
         text = self.processor.apply_chat_template(
             prompt,
             tokenize=False,
             add_generation_prompt=True,
-            **opts,
+            **self.template_options,
         )
+        print("Text:", text)
         inputs = self.processor(images=images, text=text, return_tensors="pt").to(self.model.device)
 
         inputs = {
@@ -128,8 +130,9 @@ class HuggingFaceModel(LLMBase):
 
         input_len = inputs["input_ids"].shape[-1]
 
-        outputs = self.model.generate(**inputs, max_new_tokens=1024, do_sample=True, temperature=self.temperature, **opts)
+        outputs = self.model.generate(**inputs, max_new_tokens=32768, do_sample=True, temperature=self.temperature, **self.generate_options)
         response = self.processor.decode(outputs[0][input_len:], skip_special_tokens=False)
+        response = self.processor.parse_response(response, prefix=text)["content"]
 
         return response.strip()
 

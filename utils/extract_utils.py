@@ -89,6 +89,9 @@ class ExtractionPipeline:
             "model_name": model_name,
             "rate_limit_wait": getattr(self.cfg, "rate_limit_wait", False),
             "remote_server": getattr(llm_cfg, "remote_server", None),
+            "init_options": getattr(llm_cfg, "init_opts", {}),
+            "template_options": getattr(llm_cfg, "template_opts", {}),
+            "generate_options": getattr(llm_cfg, "gen_opts", {}),
         }
 
         if getattr(llm_cfg, "temperature", None) is not None:

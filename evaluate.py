@@ -74,16 +74,27 @@ def semantic_similarity(a: str | list, b: str | list) -> float:
     if not a or not b:
         return 0.0
 
+    single = False
+
+    assert type(a) == type(b)
+
     if isinstance(a, str):
         a = [a]
+        single = True
     if isinstance(b, str):
         b = [b]
+        single = True
 
     emb_a = phrase_embedder.encode(a)
     emb_b = phrase_embedder.encode(b)
 
     # Compute cosine similarity
     cos_sim = phrase_embedder.similarity_pairwise(emb_a, emb_b)
+
+    if single:
+        assert len(cos_sim) == 1
+
+        cos_sim = cos_sim[0]
 
     return cos_sim.numpy()
 

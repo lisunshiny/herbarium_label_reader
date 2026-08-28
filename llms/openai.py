@@ -40,7 +40,7 @@ class OpenAIModel(LLMBase):
     def __init__(self, *args, **kwargs):
         base_url = kwargs.pop("base_url", None)
         super().__init__(*args, **kwargs)
-        self.client = OpenAI(base_url=base_url)
+        self.client = OpenAI(base_url=base_url, **self.init_options)
 
     def _prepare_prompt(self, prompt: list) -> dict:
         return {
@@ -55,7 +55,8 @@ class OpenAIModel(LLMBase):
             model=self.model_name,
             temperature=self.temperature,
             **prepared_prompt,
-            **self.options,
+            **self.template_options,
+            **self.generate_options,
         ).output_text
 
     def get_api_error_status_code(self, error: Exception) -> int:

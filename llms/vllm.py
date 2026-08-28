@@ -73,6 +73,7 @@ class VLLMModel(OpenAIModel):
             model=self.model_name,
             temperature=self.temperature,
             **prepared_prompt,
-            **self.options,
+            **self.template_options,
+            **self.generate_options,
         )
         return response.choices[0].message.content

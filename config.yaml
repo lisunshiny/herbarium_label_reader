@@ -9,7 +9,9 @@ batch_prompt: "In the following, you will receive a batch of identification task
 llm:
   remote_server: null
   temperature: null
-  options: {}
+  init_opts: {}
+  template_opts: {}
+  gen_opts: {}
   model_name: "gemini-2.5-pro"
   prompt: "
     You are an expert in identifying and extracting information from herbarium labels.
@@ -54,3 +56,10 @@ hydra:
         exclude_keys:
           - llm.prompt
           - preprocessors.grounding_dino.prompt
+          - hydra.launcher.partition
+          - hydra.launcher.timeout_min
+          - hydra.launcher.exclude
+
+  callbacks:
+    log_job_return:
+      _target_: hydra.experimental.callbacks.LogJobReturnCallback
