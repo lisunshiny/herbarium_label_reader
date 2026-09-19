@@ -63,7 +63,7 @@ def create_pipeline(
         "batch_prompt": config.batch_prompt if batch_size != 1 else "",
     }
 
-    cfg = OmegaConf.create(cfg_dict)
+    cfg = OmegaConf.merge(config, cfg_dict)
 
     return ExtractionPipeline(cfg)
 

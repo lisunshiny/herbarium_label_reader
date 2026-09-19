@@ -506,7 +506,8 @@ class TestInitializePreprocessor(unittest.TestCase):
         mock_gd.assert_called_once()
         self.assertIsNotNone(result)
 
-    def test_initialize_preprocessor_disabled(self):
+    @patch("utils.extract_utils.GeminiModel")
+    def test_initialize_preprocessor_disabled(self, mock_gemini):
         """Test initializing when preprocessor is disabled."""
         mock_cfg = OmegaConf.create({
             "preprocessors": {

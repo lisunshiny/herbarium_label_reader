@@ -8,7 +8,7 @@ from pathlib import Path
 from PIL import Image
 from omegaconf import DictConfig
 
-from llms import GeminiModel, OpenAIModel, GroqModel, OllamaModel, VLLMModel, HuggingFaceModel
+from llms import GeminiModel, OpenAIModel, GroqModel, OllamaModel, VLLMModel, HuggingFaceModel, OpenRouterModel
 from preprocessors import GroundingDinoPreprocessor
 
 
@@ -81,7 +81,7 @@ class ExtractionPipeline:
 
         def _try_construct(model_cls, **kwargs):
             class_name = getattr(model_cls, "__name__", type(model_cls).__name__)
-            print(f"Initializing {class_name} with args: {kwargs}")
+            print(f"Initializing {class_name} for model {model_name}")
             return model_cls(**kwargs)
 
         # Build kwargs from config
@@ -98,7 +98,9 @@ class ExtractionPipeline:
             kwargs["temperature"] = llm_cfg.temperature
 
         # Instantiate the appropriate model
-        if model_name.startswith("gemini") or model_name.startswith("gemma"):
+        if model_name.startswith("openrouter:"):
+            self.llm = _try_construct(OpenRouterModel, **kwargs)
+        elif model_name.startswith("gemini") or model_name.startswith("gemma"):
             self.llm = _try_construct(GeminiModel, **kwargs)
         elif model_name.startswith("gpt"):
             self.llm = _try_construct(OpenAIModel, **kwargs)

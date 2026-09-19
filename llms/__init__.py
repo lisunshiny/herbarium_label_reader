@@ -39,3 +39,11 @@ except ImportError:  # pragma: no cover - optional dependency
     class VLLMModel:  # type: ignore[no-redef]
         def __init__(self, *args, **kwargs):
             raise ImportError("openai is required to use VLLMModel")
+
+
+try:
+    from .openrouter import OpenRouterModel
+except ImportError:  # pragma: no cover - optional dependency
+    class OpenRouterModel:
+        def __init__(self, *args, **kwargs):
+            raise ImportError("openai is required to use OpenRouterModel")

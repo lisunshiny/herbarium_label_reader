@@ -1,6 +1,6 @@
 # Herbarium Label Reader
 
-A project for digitizing herbarium specimen labels by combining modern visual grounding and large language models in a single extraction pipeline. The system uses zero-shot object localization (Grounding DINO) to find label regions and large language-and-vision models (LLVMs) to extract and structure textual information from those regions. Supported providers in the codebase include Google (Gemini via google-genai), OpenAI (GPT family), Groq (LLaMA-family models served via the Groq API), and Ollama (local or remote Ollama-hosted models).
+A project for digitizing herbarium specimen labels by combining modern visual grounding and large language models in a single extraction pipeline. The system uses zero-shot object localization (Grounding DINO) to find label regions and large language-and-vision models (LLVMs) to extract and structure textual information from those regions. Supported providers in the codebase include OpenRouter (vision models via its OpenAI-compatible API), Google (Gemini via google-genai), OpenAI (GPT family), Groq (LLaMA-family models served via the Groq API), and Ollama (local or remote Ollama-hosted models).
 
 ## Key Features
 
@@ -139,3 +139,72 @@ The extracted data is saved in CSV format with the following fields:
 ## License
 
 MIT License — see LICENSE file for details.
+
+## OpenRouter
+
+Use `llm.model_name=openrouter:<provider>/<model>`, for example
+`openrouter:google/gemini-2.5-pro`. Only the `openrouter:` prefix is removed;
+`google/gemini-2.5-pro` is sent to OpenRouter unchanged. Existing model names
+continue to select their original providers. Choose a model that supports image input.
+
+Set `OPENROUTER_API_KEY` in the project-root `.env` (see `.env.example`) or export
+it in your shell. No Google or OpenAI API key is needed for this route. Keep keys
+out of Hydra overrides/config files, which are saved with experiment outputs.
+The adapter never falls back to `OPENAI_API_KEY` or `OPENAI_BASE_URL`.
+
+For a lightweight API-only environment (Python 3.10+), with label detection disabled:
+
+```bash
+python -m venv venv
+source venv/bin/activate
+pip install openai==2.7.1 hydra-core==1.3.2 pandas==2.3.3 Pillow python-dotenv==1.2.1
+# Also install gradio==5.49.1 if using the web interface.
+```
+
+The full `requirements.txt` remains available for other providers, detection, and
+evaluation dependencies. OpenRouter reuses the existing OpenAI SDK dependency.
+
+From the repository root, run the 100-image handwritten baseline:
+
+```bash
+cd /Users/liann/workspace/herbarium_label_reader
+python extract_data.py \
+  dataset_path=/Users/liann/Downloads/GLM_scans_mini \
+  image_list=data/handwritten.txt image_index=0 n_images=100 \
+  batch_size=1 img_max_size=2048 \
+  preprocessors.grounding_dino.enabled=false \
+  llm.model_name=openrouter:google/gemini-2.5-pro
+```
+
+This uses the first 100 filenames in `data/handwritten.txt`, resolved under the
+`handwritten` subfolder. It writes the usual `extracted_data.csv` in the Hydra
+output directory. Evaluate with the existing evaluator and
+`/Users/liann/Downloads/GLM_scans_mini/handwritten/label_data.csv` as ground truth.
+This runs inference and incurs OpenRouter charges. It reproduces the requested
+settings; matching published scores is not guaranteed across model versions or
+OpenRouter's upstream provider routing. Record the resolved model/provider used
+for benchmark comparisons.
+
+Launch the web app with the same route:
+
+```bash
+python app.py llm.model_name=openrouter:google/gemini-2.5-pro preprocessors.grounding_dino.enabled=false
+```
+
+Both tabs offer OpenRouter models and accept custom `openrouter:<provider>/<model>`
+values. Credentials stay on the server. The web pipeline preserves `llm.init_opts`,
+`llm.template_opts`, and `llm.gen_opts` from configuration. Optional OpenRouter
+parameters (such as provider routing) can be passed under `llm.gen_opts.extra_body`.
+Temperature is omitted from API requests when null; existing retry and CSV parsing
+behavior is retained. Streaming is not supported by the extraction pipeline.
+
+Implementation references: [official SDK quickstart](https://openrouter.ai/docs/quickstart)
+and [image-input format](https://openrouter.ai/docs/guides/overview/multimodal/image-understanding).
+Requests use `https://openrouter.ai/api/v1/chat/completions` with local images encoded
+as JPEG data URLs.
+
+Offline tests (no inference calls):
+
+```bash
+python -m unittest discover -s tests -v
+```
