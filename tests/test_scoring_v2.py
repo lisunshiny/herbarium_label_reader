@@ -1,0 +1,150 @@
+"""Grading-policy regressions, independent of provider calls."""
+import asyncio
+import json
+import math
+from pathlib import Path
+from types import SimpleNamespace
+import unittest
+
+from inspect_ai.scorer import Target
+from scoring import OUTPUT_FIELDS, FACT_FIELDS, grade, label_fields, legacy_reference, parse_fields, validate_reference
+
+
+def empty_answer():
+    return {field: [] if field in FACT_FIELDS else '' for field in OUTPUT_FIELDS}
+
+
+def unknown_reference():
+    return {field: {'status': 'unknown'} for field in OUTPUT_FIELDS}
+
+
+class GradingRulesTests(unittest.TestCase):
+    def test_species_identity_is_independent_of_author(self):
+        reference = unknown_reference()
+        reference['Species name'] = {'status': 'present', 'value': 'Salix repens × purpurea'}
+        reference['Species author'] = {'status': 'present', 'value': 'Wim'}
+        answer = dict(empty_answer(), **{'Species name': 'salix repens x purpurea', 'Species author': 'Wimm'})
+        scores, _ = grade(answer, True, reference)
+        self.assertEqual(scores['Species name'], 1)
+        self.assertEqual(scores['Species author'], 0)
+        answer['Species name'] = 'Salix repens x cinerea'
+        self.assertEqual(grade(answer, True, reference)[0]['Species name'], 0)
+
+    def test_partial_dates_get_component_credit_but_not_full_credit(self):
+        reference = unknown_reference()
+        reference['Collection date'] = {'status': 'present', 'value': '3. Mai 1855'}
+        scores, _ = grade({'Collection date': '1855'}, False, reference)
+        self.assertEqual([scores[k] for k in ['Collection date', 'date_year', 'date_month', 'date_day']], [0, 1, 0, 0])
+        reference['Collection date']['value'] = '1855'
+        scores, _ = grade({'Collection date': '1855-05-03'}, False, reference)
+        self.assertEqual(scores['Collection date'], 0)
+        self.assertTrue(math.isnan(scores['date_month']))
+        reference['Collection date']['value'] = 'Mai 1855'
+        self.assertEqual(grade({'Collection date': '1855-5'}, False, reference)[0]['Collection date'], 1)
+
+    def test_only_explicit_collector_aliases_are_accepted(self):
+        reference = unknown_reference()
+        reference["Collector's name"] = {'status': 'present', 'value': 'H. Riese'}
+        answer = {"Collector's name": 'Hermann Riese'}
+        self.assertEqual(grade(answer, False, reference)[0]["Collector's name"], 0)
+        reference["Collector's name"]['alternatives'] = ['Hermann Riese']
+        self.assertEqual(grade(answer, False, reference)[0]["Collector's name"], 1)
+
+    def test_absent_unknown_and_unreadable_have_distinct_meanings(self):
+        reference = unknown_reference()
+        reference['Country'] = {'status': 'absent'}
+        reference['Region'] = {'status': 'unreadable'}
+        scores, detail = grade(empty_answer(), True, reference)
+        self.assertEqual(scores['Country'], 1)
+        self.assertTrue(math.isnan(scores['Region']))
+        self.assertTrue(math.isnan(scores['specimen_exact']))
+        scores, detail = grade({'Country': 'Deutschland', 'Region': 'Lausitz'}, False, reference)
+        self.assertEqual(scores['Country'], 0)
+        self.assertEqual(scores['unsupported_additions'], 1)
+        self.assertEqual(detail['Country']['unsupported'], ['Deutschland'])
+        self.assertNotIn('unsupported', detail['Region'])
+        self.assertEqual(grade({}, False, reference)[0]['Country'], 0)  # Missing key isn't an empty answer.
+
+    def test_location_components_and_unsupported_additions(self):
+        reference = unknown_reference()
+        reference['Location'] = {'status': 'present', 'facts': [
+            {'value': 'Spremberg'}, {'value': 'Dorf Roitz', 'alternatives': ['Roitz']},
+            {'value': 'unter Kiefern'}]}
+        scores, detail = grade({'Location': ['ROITZ.', 'Spremberg', 'near river']}, False, reference)
+        self.assertEqual(scores['Location'], 0)
+        self.assertAlmostEqual(scores['Location_recall'], 2 / 3)
+        self.assertAlmostEqual(scores['Location_precision'], 2 / 3)
+        self.assertEqual(detail['Location']['omitted'], ['unter Kiefern'])
+        self.assertEqual(detail['Location']['unsupported'], ['near river'])
+        self.assertEqual(scores['omitted_facts'], 1)
+        self.assertEqual(scores['unsupported_additions'], 1)
+        answer = {'Location': ['Kiefern, unter', 'Roitz', 'Spremberg']}
+        self.assertEqual(grade(answer, False, reference)[0]['Location'], 1)
+        answer['Location'].append('Roitz')
+        scores, _ = grade(answer, False, reference)
+        self.assertEqual(scores['Location'], 0)  # Duplicate facts cannot earn extra credit.
+        self.assertEqual(scores['Location_recall'], 1)
+
+    def test_fact_negation_and_numbers_are_not_discarded(self):
+        reference = unknown_reference()
+        reference['Notes'] = {'status': 'present', 'facts': [{'value': 'not flowering'}, {'value': 'altitude 200 m'}]}
+        scores, _ = grade({'Notes': ['flowering', 'altitude 300 m']}, False, reference)
+        self.assertEqual(scores['Notes_recall'], 0)
+        self.assertEqual(scores['unsupported_additions'], 2)
+
+    def test_invalid_field_does_not_erase_other_credit(self):
+        answer = dict(empty_answer(), **{'Species name': 'Salix repens', 'Notes': None, 'extra': 5})
+        usable, valid = parse_fields(json.dumps(answer))
+        reference = unknown_reference()
+        reference['Species name'] = {'status': 'present', 'value': 'Salix repens'}
+        reference['Notes'] = {'status': 'absent'}
+        scores, _ = grade(usable, valid, reference)
+        self.assertEqual(scores['valid_json'], 0)
+        self.assertEqual(scores['Species name'], 1)
+        self.assertEqual(scores['Notes'], 0)
+        duplicate = '{"Country": "A", "Country": "B", "State": "Brandenburg"}'
+        usable, valid = parse_fields(duplicate)
+        self.assertFalse(valid)
+        self.assertNotIn('Country', usable)
+        self.assertEqual(usable['State'], 'Brandenburg')
+        usable, _ = parse_fields('{"Country":"A", "Notes":{"Country":1,"Country":2}}')
+        self.assertEqual(usable['Country'], 'A')
+
+    def test_specimen_exact_requires_complete_reference_but_not_perfect_format(self):
+        reference = {field: {'status': 'absent'} for field in OUTPUT_FIELDS}
+        answer = empty_answer()
+        scores, _ = grade(answer, False, reference)
+        self.assertEqual(scores['specimen_exact'], 1)
+        self.assertEqual(scores['valid_json'], 0)
+        answer['Country'] = 'Deutschland'
+        self.assertEqual(grade(answer, True, reference)[0]['specimen_exact'], 0)
+
+    def test_bad_golden_annotations_fail(self):
+        for item in [{'status': 'maybe'}, {'status': 'present'},
+                     {'status': 'absent', 'value': 'text'},
+                     {'status': 'present', 'value': 'text', 'alternatives': 'alias'}]:
+            with self.subTest(item=item), self.assertRaises(ValueError):
+                validate_reference({**unknown_reference(), 'Region': item})
+        overlap = {'status': 'present', 'facts': [{'value': 'Roitz'}, {'value': 'Dorf Roitz', 'alternatives': ['Roitz']}]}
+        with self.assertRaisesRegex(ValueError, 'Overlapping'):
+            validate_reference({**unknown_reference(), 'Location': overlap})
+
+    def test_scorer_metadata_explains_errors(self):
+        reference = unknown_reference()
+        reference['Country'] = {'status': 'absent'}
+        target = Target(json.dumps({'schema_version': 2, 'fields': reference}))
+        state = SimpleNamespace(output=SimpleNamespace(completion=json.dumps({'Country': 'Germany'})))
+        result = asyncio.run(label_fields()(state, target))
+        self.assertEqual(result.metadata['scoring_version'], 2)
+        self.assertEqual(result.metadata['fields']['Country']['unsupported'], ['Germany'])
+        self.assertIn('Notes', result.metadata['unscored_fields'])
+
+    def test_documented_golden_example_is_valid(self):
+        data = json.loads((Path(__file__).resolve().parents[1] / 'goldens.example.json').read_text())
+        self.assertEqual(data['schema_version'], 2)
+        for fields in data['samples'].values():
+            validate_reference(fields)
+
+
+if __name__ == '__main__':
+    unittest.main()

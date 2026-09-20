@@ -21,7 +21,7 @@ from inspect_ai.model import ModelOutput, ModelUsage, get_model
 from inspect_ai.scorer import Target
 
 from herbarium import herbarium, image_input, load_dataset
-from scoring import FIELDS, label_fields, normalize, parse_answer
+from scoring import FIELDS, OUTPUT_FIELDS, FACT_FIELDS, label_fields, normalize, parse_answer, legacy_reference
 
 
 class DatasetTests(unittest.TestCase):
@@ -56,7 +56,7 @@ class DatasetTests(unittest.TestCase):
         dataset = self.dataset()
         self.assertEqual([sample.id for sample in dataset], self.names)
         sample = dataset[0]
-        self.assertEqual(json.loads(sample.target), self.reference)
+        self.assertEqual(json.loads(sample.target)["fields"], legacy_reference(self.rows[0]))
         message = sample.input[0]
         self.assertEqual(len(message.content), 2)
         self.assertNotIn('secret_taxon', message.text)
@@ -73,6 +73,31 @@ class DatasetTests(unittest.TestCase):
         with Image.open(io.BytesIO(base64.b64decode(url.split(',')[1]))) as img:
             self.assertEqual(img.size, (10, 5))
             self.assertEqual(img.mode, 'RGB')
+
+    def test_golden_overrides_are_embedded_without_changing_the_prompt(self):
+        golden = self.root / 'goldens.json'
+        golden.write_text(json.dumps({'schema_version': 2, 'samples': {
+            self.names[0]: {'Country': {'status': 'absent'},
+                            "Collector's name": {'status': 'present', 'value': 'Riese'}}}}))
+        original = self.dataset()
+        dataset = load_dataset(str(self.root), str(self.listing), 32, str(golden))
+        fields = json.loads(dataset[0].target)['fields']
+        self.assertEqual(fields['Country'], {'status': 'absent'})
+        self.assertEqual(fields["Collector's name"]['value'], 'Riese')
+        self.assertEqual(fields['State']['source'], 'catalogue')
+        self.assertEqual(dataset[0].input[0].content, original[0].input[0].content)
+        self.assertEqual(dataset[1].target, original[1].target)
+        self.assertEqual(dataset[0].metadata['golden_fields'], ['Country', "Collector's name"])
+
+    def test_bad_golden_fails_before_image_processing(self):
+        golden = self.root / 'goldens.json'
+        for samples in [{self.names[0]: {'Country': {'status': 'absent', 'value': 'Germany'}}},
+                        {'misspelled-filename.jpg': {}},
+                        {self.names[0]: {'County': {'status': 'absent'}}}]:
+            golden.write_text(json.dumps({'schema_version': 2, 'samples': samples}))
+            with patch('herbarium.image_input', side_effect=AssertionError('Should validate first')), \
+                 self.assertRaises(ValueError):
+                load_dataset(str(self.root), str(self.listing), 32, str(golden))
 
     def test_invalid_dataset_fails_before_generation(self):
         self.listing.write_text('absent.jpg')
@@ -103,7 +128,10 @@ class DatasetTests(unittest.TestCase):
             load_dataset(str(self.root), str(self.listing), 0)
 
     def test_inspect_eval_logs_scores_and_usage_without_network(self):
-        correct = dict(self.reference, **{'Collection date': '1855-05-03'})
+        correct = {field: ([fact['value'] for fact in item.get('facts', [])] if field in FACT_FIELDS
+                            else item.get('value', ''))
+                   for field, item in legacy_reference(self.rows[0]).items()}
+        correct['Collection date'] = '1855-05-03'
         wrong = dict(correct, **{'Collection date': '1865-09-26', "Collector's name": 'Riese'})
         outputs = [ModelOutput.from_content('mockllm/model', json.dumps(row)) for row in [correct, wrong]]
         for output in outputs:
@@ -209,7 +237,7 @@ class ScoringTests(unittest.TestCase):
         self.assertNotEqual(normalize('Species name', 'Salix repens x purpurea'), normalize('Species name', 'Salix repens x cinerea'))
 
     def test_schema_rejects_malformed_missing_extra_and_nonstring_fields(self):
-        correct = {field: '' for field in FIELDS}
+        correct = {field: [] if field in FACT_FIELDS else '' for field in OUTPUT_FIELDS}
         self.assertEqual(parse_answer(json.dumps(correct)), correct)
         for text in ['not JSON', '[]', '{}', '```json\n{}\n```',
                      json.dumps({**correct, 'extra': ''}),

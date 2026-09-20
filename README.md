@@ -161,36 +161,74 @@ fees. Existing logs are not backfilled. Inspect's live cost-limit enforcement in
 this version relies on configured prices, so do not rely on `--cost-limit` with
 this adapter; set spending limits in OpenRouter instead.
 
-The prompt in `prompt.txt` requests exactly seven string-valued JSON fields:
+### Grading rules (version 2)
 
-| Output field | Reference column |
+The prompt requests nine fields: `Species name`, `Species author`, `Collection date`,
+`Collector's name`, `Country`, `State`, `Location`, `Region`, and `Notes`. All are
+strings except `Location` and `Notes`, which are lists with one complete fact per
+item. Unknown or absent model answers use `""` or `[]`.
+
+| Field | Full-credit rule |
 |---|---|
-| Species name | Spezies Label |
-| Collection date | Sammeldatum |
-| Collector's name | Sammler |
-| Country/State | Geographische_Zuordnung |
-| Location | Fundort Label |
-| Region | Naturraum |
-| Notes | Bemerkung_zur_Pflanze |
+| Species name | Complete scientific name, including hybrid parents, scored independently of author. Normalize case, whitespace and `×`/`x`; no inferred synonyms. |
+| Species author | Separate exact match or an explicitly approved alternative. |
+| Collection date | Normalized German/ISO date with exactly the annotated precision. Missing or invented date components fail full credit. |
+| Collector's name | The written name or an explicitly approved alternative; no automatic expansion of initials. |
+| Country / State | Separate matches for explicitly written information. |
+| Location / Notes | Every annotated fact recovered, with no unmatched or repeated items. Fact comparison ignores punctuation and word order but retains every word, negation and number. Other wording requires explicit alternatives. |
+| Region | The written region or an explicitly approved alternative; no geographical inference. |
 
-`valid_json` measures whether the response is a JSON object with exactly these
-keys and string values. Fences, missing/extra keys, duplicate keys, non-string
-values, and invalid JSON fail format validation. Invalid responses score zero
-on every field that has a nonblank reference.
+`valid_json` checks the complete schema. Usable fields still receive content credit
+when another field is missing, malformed or duplicated, or extra keys are present.
+A duplicated field is not graded as a usable answer. Invalid JSON is not repaired.
+Missing keys do not count as correct empty answers, even for absent reference fields.
 
-Each field reports the mean exact-match score across its nonblank references.
-Normalization is limited to Unicode NFC, case, whitespace, the hybrid `×`/`x`
-symbol, and German month-name dates converted to ISO. Full species names,
-collector names, locality details, and dates are compared. Author abbreviations
-are retained; synonyms and paraphrases are not equated. Partial dates retain
-their precision (`YYYY` or `YYYY-MM`); a full date does not equal a year-only
-reference. No translation is requested.
+The log includes per-field accuracy, `field_accuracy` (the mean across assessable
+fields within each specimen), date year/month/day diagnostics, and Location/Notes
+fact precision and recall. Precision is unscored when no facts are predicted;
+recall is unscored when no facts are expected. `omitted_facts` and
+`unsupported_additions` are counts per specimen (averaged over the run); a wrong
+scalar value counts as one omitted expected value and one unsupported prediction.
+An extra duplicate fact counts as an unmatched prediction. Error details are saved
+in each score's metadata. “Unsupported” means unsupported by the reference, not a
+verified hallucination while the catalogue remains provisional.
 
-**Blank reference fields are unknown and excluded from that field's accuracy.**
-Inspect records their unscored counts. Predictions for those fields stay in logs
-for manual review. They are neither credited as correct nor labelled hallucinations.
-This strict baseline can penalize legitimate alternate wording, synonyms, and
-information absent from the physical label but added to the reference catalogue.
+`specimen_exact` requires all nine fields to have assessable references and all nine
+content scores to pass. It is unscored for partially annotated specimens. Schema
+compliance is separate: a content-perfect answer with an extra key can pass
+`specimen_exact` while failing `valid_json`.
+
+### Human-checked answer keys (optional)
+
+Use `-T golden_file=/path/to/goldens.json` to override catalogue fields with reviewed
+answers. [goldens.example.json](goldens.example.json) illustrates the format with a
+**synthetic example, not a verified transcription**. Replace its filename and
+annotations with your own; nothing in this file is loaded by default.
+
+Each annotation has an explicit status:
+
+- `present`: requires a string `value`, or `facts` for Location/Notes. Optional
+  `alternatives` list reviewed equivalent strings for that value or individual fact.
+- `absent`: a correctly typed empty answer earns credit; nonempty output is an addition.
+- `unknown`, `unreadable`, or `uncertain`: excluded from accuracy and addition/omission
+  counts. Predictions remain in the log for review.
+
+The JSON has `schema_version: 2` and a `samples` object keyed by image filename.
+You may override individual fields; other fields fall back to the current CSV.
+Set a field to `unknown` explicitly to exclude a known-bad catalogue answer.
+Annotations are validated before inference and embedded in the saved targets.
+
+Without overrides, the existing CSV still works as **provisional reference data**.
+Blank cells become `unknown`, never `absent`. Country/state split at the first colon;
+simple binomials or hybrids followed by a capitalized author split into name/author.
+Complex taxonomic strings stay intact, with author unknown, until reviewed.
+Location/Notes split at catalogue `/`, `:`, `;`, and `,` delimiters into provisional
+facts. These mechanical conversions cannot establish what is written on the label:
+curation should correct enriched names, inferred geography, ambiguous authorities,
+and fact boundaries. Each field's provenance is recorded in the log.
+
+This changes both the prompt and scoring policy. Existing logs are untouched;
+version-1 scores and outputs are not directly comparable to version 2.
 
 ## Migration
 
@@ -206,7 +244,8 @@ commit `611d435`. New scores are not directly comparable with old scores: the ol
 evaluator compared only the first two species-name words, date year, and final
 collector-name word. The prompt, response format, and scoring policy also changed.
 
-The maintained code is `herbarium.py`, `scoring.py`, and `prompt.txt`. Optional
+The task and grading code is `herbarium.py`, `scoring.py`, and `prompt.txt`;
+`openrouter_cost.py` preserves provider-returned charges. Optional
 future analysis or CSV export can use Inspect's [log API](https://inspect.aisi.org.uk/eval-logs.html).
 
 ## Offline tests

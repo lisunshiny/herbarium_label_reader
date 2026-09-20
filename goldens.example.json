@@ -1,0 +1,20 @@
+{
+  "schema_version": 2,
+  "samples": {
+    "example-label.jpg": {
+      "Species name": {"status": "present", "value": "Salix repens x purpurea"},
+      "Species author": {"status": "present", "value": "Wim", "alternatives": ["Wim."]},
+      "Collection date": {"status": "present", "value": "1855-05-03"},
+      "Collector's name": {"status": "present", "value": "Riese"},
+      "Country": {"status": "absent"},
+      "State": {"status": "absent"},
+      "Location": {"status": "present", "facts": [
+        {"value": "Spremberg"},
+        {"value": "Dorf Roitz", "alternatives": ["Roitz"]},
+        {"value": "unter Kiefern"}
+      ]},
+      "Region": {"status": "uncertain"},
+      "Notes": {"status": "present", "facts": [{"value": "Flora der Niederlausitz"}]}
+    }
+  }
+}

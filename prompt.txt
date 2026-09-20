@@ -1,6 +1,17 @@
-Read the herbarium specimen label in the image. Extract only information supported by the label; do not guess, translate, expand initials, or substitute taxonomic synonyms. Retain the complete species name and author abbreviation when present. Do not add commentary or infer a region from a location.
+Read the herbarium specimen label in the image. Extract only information supported by the label; do not guess, translate, expand initials, or substitute taxonomic synonyms. Do not add commentary or infer a country, state, or region from a location.
 
-Return exactly one JSON object with these seven keys and string values:
-{"Species name": "", "Collection date": "", "Collector's name": "", "Country/State": "", "Location": "", "Region": "", "Notes": ""}
+Return exactly one JSON object with these nine keys:
+{"Species name": "", "Species author": "", "Collection date": "", "Collector's name": "", "Country": "", "State": "", "Location": [], "Region": "", "Notes": []}
 
-Use an empty string for information that is absent or unreadable. Format a readable collection date as YYYY-MM-DD; if only a month or year is present, use YYYY-MM or YYYY respectively. Preserve the full collector name as written. Include all locality and habitat details under Location. Use Country: State when both are explicitly present. Notes should contain other relevant label text, not your own observations. Return JSON only, without Markdown fences.
+All fields are strings except Location and Notes, which are lists of strings. Use an empty string or empty list for information that is absent or unreadable.
+
+Species name: the full scientific name, including hybrid parents and infraspecific ranks, without the author abbreviation.
+Species author: the author abbreviation exactly as written, separately from the scientific name.
+Collection date: YYYY-MM-DD if readable; YYYY-MM or YYYY if only that precision is written. Do not invent missing components.
+Collector's name: the name as written, including initials if present.
+Country and State: only names explicitly written on the specimen label, in separate fields.
+Location: one item per distinct locality or habitat fact (for example a town, village, named site, or habitat). Preserve each fact's full wording; do not break one fact into individual words or combine several facts into one item.
+Region: the explicitly written region, if any.
+Notes: one item per other relevant fact on the label, preserving the wording, with no observations of your own. Do not repeat information already extracted into another field.
+
+Return JSON only, without Markdown fences.
