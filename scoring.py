@@ -23,6 +23,7 @@ MONTHS = {name: i for i, name in enumerate(
     ["januar", "februar", "märz", "april", "mai", "juni", "juli", "august",
      "september", "oktober", "november", "dezember"], 1)}
 STATUSES = {"present", "absent", "unknown", "unreadable", "uncertain"}
+SCORING_VERSION = 3
 METRICS = ["valid_json", *OUTPUT_FIELDS, "field_accuracy", "specimen_exact",
            "date_year", "date_month", "date_day", "omitted_facts", "unsupported_additions",
            "Location_precision", "Location_recall", "Notes_precision", "Notes_recall"]
@@ -51,11 +52,17 @@ def normalize(field, value):
     value = " ".join(unicodedata.normalize("NFC", value).casefold().split())
     if field == "Species name":
         value = re.sub(r"\s*×\s*", " x ", value)
+        value = re.sub(r"\b(?:ssp|subsp)\.?\s+", "subsp. ", value)
+        value = re.sub(r"\b(?:v|var)\.\s+", "var. ", value)
+    if field == "Species author":
+        # Abbreviation punctuation/spacing, not author spelling or identity.
+        value = re.sub(r"[.\s]+", "", value)
     if field == "Collection date":
         value = normalize_date(value)
     if field in FACT_FIELDS:
-        # Facts ignore word order and punctuation, but retain every word and number.
-        return " ".join(sorted(re.findall(r"\w+", value)))
+        # List order is irrelevant; word order within a fact preserves relationships.
+        # Preserve numeric signs and decimals rather than turning -5 into 5.
+        return " ".join(re.findall(r"[+-]?\d+(?:[.,]\d+)?|[^\W\d_]+", value))
     return value.strip()
 
 
@@ -103,7 +110,13 @@ def validate_reference(fields):
     for field, item in fields.items():
         if not isinstance(item, dict) or item.get("status") not in STATUSES:
             raise ValueError(f"Invalid status for {field}")
-        allowed = {"status", "source"}
+        allowed = {"status", "source", "raw_value", "reason"}
+        if field in FACT_FIELDS:
+            allowed.add("complete")
+            if "complete" in item and type(item["complete"]) is not bool:
+                raise ValueError(f"complete must be boolean for {field}")
+            if item.get("complete") is False and item["status"] == "absent":
+                raise ValueError(f"Absent {field} cannot have an incomplete reference")
         if item["status"] == "present":
             if field in FACT_FIELDS:
                 allowed.add("facts")
@@ -132,15 +145,88 @@ def validate_reference(fields):
     return fields
 
 
+def split_species(value):
+    """Parse common written name forms without taxonomic synonym resolution.
+
+    Return (None, None) on unrecognized syntax instead of constructing a bad target.
+    Authorities at each rank are retained in their original order.
+    """
+    word = r"[^\W\d_]+(?:-[^\W\d_]+)*"
+    value = " ".join(value.split()).replace("×", " x ")
+    value = " ".join(value.split())
+    base = re.match(rf"^({word}\s+(?:x\s+)?{word})(?=\s|$)", value)
+    if not base:
+        return None, None
+    name, tail = base[1], value[base.end():].strip()
+    # Hybrid formulas with an abbreviated or repeated genus, no parent authority inference.
+    while re.match(r"^[xX]\s+", tail):
+        parent = re.match(rf"^[xX]\s+({word})(?:\s+({word}))?", tail)
+        if not parent:
+            return None, None
+        first = parent[1]
+        if first[0].isupper():
+            if not parent[2] or not parent[2][0].islower():
+                return None, None
+            consumed = parent.end()
+            name += " x " + first + " " + parent[2]
+        else:
+            consumed = parent.start(2) if parent[2] else parent.end()
+            name += " x " + first
+        tail = tail[consumed:].strip()
+    ranks = re.compile(rf"(?<!\w)(subsp\.?|ssp\.?|var\.?|v\.|forma|f\.)\s+({word})(?=\s|$)", re.I)
+    authors = []
+    cursor = 0
+    for rank in ranks.finditer(tail):
+        # 'f.' in an authority can mean filius; don't reinterpret a following author.
+        if rank[1].lower() == "f." and not rank[2][0].islower():
+            return None, None
+        prefix = tail[cursor:rank.start()].strip()
+        if prefix:
+            authors.append(prefix)
+        name += " " + rank[1] + " " + rank[2]
+        cursor = rank.end()
+    remainder = tail[cursor:].strip()
+    if remainder:
+        authors.append(remainder)
+    author = " ".join(authors)
+    # Dangling ranks, additional hybrids, or scope qualifiers require human review.
+    if re.search(r"(?<!\w)(?:subsp|ssp|var|v|f)\.(?=\s|$)|\b(?:x|s\.\s*str|sensu)\b", author, re.I):
+        return None, None
+    if author and not (author[0].isupper() or author.startswith("(")):
+        return None, None
+    if author.count("(") != author.count(")"):
+        return None, None
+    return name, author
+
+
+def prepare_reference(target):
+    """Upgrade provisional saved targets, without touching reviewed annotations."""
+    reference = {field: dict(item) for field, item in target["fields"].items()}
+    if target.get("reference_version", 2) < 3:
+        species, author = reference["Species name"], reference["Species author"]
+        if all(item.get("source") == "catalogue" for item in (species, author)):
+            raw = " ".join(item.get("value", "") for item in (species, author)).strip()
+            name, authority = split_species(raw)
+            for field, value in [("Species name", name), ("Species author", authority)]:
+                item = {"source": "catalogue", "status": "present" if value else "unknown"}
+                if value:
+                    item["value"] = value
+                elif raw and name is None:
+                    item.update(raw_value=raw, reason="Ambiguous species/author syntax; needs review")
+                reference[field] = item
+    notes = reference["Notes"]
+    if notes.get("source") == "catalogue" and notes["status"] == "present":
+        notes.setdefault("complete", False)
+    return validate_reference(reference)
+
+
 def legacy_reference(row):
     """Provisional CSV conversion, not a claim of human-verified label truth."""
     values = {field: row[column] for field, column in FIELDS.items()}
     species = values.pop("Species name").strip()
-    # Only split a simple binomial/hybrid followed by a capitalized authority.
-    # Complex taxonomic strings stay intact and need explicit annotations.
-    match = re.fullmatch(r"([A-Z][a-z]+\s+[a-z-]+(?:\s+[x×]\s+(?:[A-Z][a-z]+\s+)?[a-z-]+)?)\s+([A-Z].*)", species)
-    values["Species name"] = match[1] if match else species
-    values["Species author"] = match[2] if match else ""
+    name, author = split_species(species)
+    values["Species name"] = name or ""
+    values["Species author"] = author or ""
     country, separator, state = values.pop("Country/State").partition(":")
     values.update(Country=country.strip(), State=state.strip() if separator else "")
     result = {}
@@ -153,8 +239,12 @@ def legacy_reference(row):
                 parts = [part.strip() for part in re.split(r"[/:;,]", value) if part.strip()]
                 unique = {normalize(field, part): part for part in parts}
                 item["facts"] = [{"value": part} for part in unique.values()]
+                if field == "Notes":
+                    item["complete"] = False
             else:
                 item["value"] = value
+        if field in {"Species name", "Species author"} and species and name is None:
+            item.update(raw_value=species, reason="Ambiguous species/author syntax; needs review")
         result[field] = item
     return validate_reference(result)
 
@@ -186,9 +276,10 @@ def grade(answer, valid, reference):
                 else:
                     remaining.remove(hit)
             matched = len(facts) - len(remaining)
-            values[field] = int(usable and not remaining and not extra)
+            complete = item.get("complete", True)
+            values[field] = int(usable and not remaining and not extra) if complete else float("nan")
             values[field + "_recall"] = matched / len(facts) if facts else float("nan")
-            values[field + "_precision"] = matched / len(prediction) if prediction else float("nan")
+            values[field + "_precision"] = matched / len(prediction) if prediction and complete else float("nan")
             missing = [facts[i]["value"] for i in remaining]
         else:
             correct = (not prediction.strip() if status == "absent"
@@ -196,13 +287,19 @@ def grade(answer, valid, reference):
             values[field] = int(usable and correct)
             missing = [item["value"]] if status == "present" and not values[field] else []
             extra = [prediction] if prediction.strip() and not values[field] else []
+        unverified = extra if field in FACT_FIELDS and not item.get("complete", True) else []
+        if unverified:
+            extra = []
         omissions += len(missing)
         additions += len(extra)
         details[field] = {"status": status, "omitted": missing, "unsupported": extra,
-                          "usable_output": usable, "source": item.get("source", "golden")}
-    known = [values[field] for field in OUTPUT_FIELDS if reference[field]["status"] in {"present", "absent"}]
+                          "usable_output": usable, "source": item.get("source", "golden"),
+                          "reference_complete": item.get("complete", True), "unverified": unverified}
+    known = [values[field] for field in OUTPUT_FIELDS if reference[field]["status"] in {"present", "absent"}
+             and reference[field].get("complete", True)]
     if known:
         values["field_accuracy"] = sum(known) / len(known)
+    if any(item["status"] in {"present", "absent"} for item in reference.values()):
         values["omitted_facts"] = omissions
         values["unsupported_additions"] = additions
     # A fully correct specimen cannot be established with unknown reference fields.
@@ -229,11 +326,11 @@ def label_fields():
             target_data = {"schema_version": 2, "fields": legacy_reference({column: target_data[field] for field, column in FIELDS.items()})}
         if target_data["schema_version"] != 2:
             raise ValueError("Unsupported reference schema version")
-        reference = validate_reference(target_data["fields"])
+        reference = prepare_reference(target_data)
         answer, valid = parse_fields(state.output.completion)
         values, details = grade(answer, valid, reference)
         return Score(value=values, answer=state.output.completion,
-                     explanation="Field-specific grading v2; schema compliance is scored separately. See metadata for omissions and additions.",
-                     metadata={"scoring_version": 2, "fields": details,
-                               "unscored_fields": [f for f in OUTPUT_FIELDS if reference[f]["status"] not in {"present", "absent"}]})
+                     explanation="Field-specific grading v3; schema compliance is scored separately. See metadata for omissions and additions.",
+                     metadata={"scoring_version": SCORING_VERSION, "fields": details,
+                               "unscored_fields": [f for f in OUTPUT_FIELDS if reference[f]["status"] not in {"present", "absent"} or not reference[f].get("complete", True)]})
     return score

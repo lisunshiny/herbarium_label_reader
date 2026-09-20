@@ -165,7 +165,7 @@ fees. Missing BYOK billing components remain unknown rather than being treated a
 this version relies on configured prices, so do not rely on `--cost-limit` with
 this adapter; set spending limits in OpenRouter instead.
 
-### Grading rules (version 2)
+### Grading rules (version 3; unchanged version-2 prompt)
 
 The prompt requests nine fields: `Species name`, `Species author`, `Collection date`,
 `Collector's name`, `Country`, `State`, `Location`, `Region`, and `Notes`. All are
@@ -174,12 +174,12 @@ item. Unknown or absent model answers use `""` or `[]`.
 
 | Field | Full-credit rule |
 |---|---|
-| Species name | Complete scientific name, including hybrid parents, scored independently of author. Normalize case, whitespace and `×`/`x`; no inferred synonyms. |
-| Species author | Separate exact match or an explicitly approved alternative. |
+| Species name | Complete scientific name, including hybrid parents, scored independently of author. Normalize case, whitespace, `×`/`x`, and `ssp.`/`subsp.` or `v.`/`var.` rank abbreviations; no inferred synonyms. |
+| Species author | Separate match ignoring abbreviation periods and spacing, or an explicitly approved alternative. Parentheses and author spelling are retained. |
 | Collection date | Normalized German/ISO date with exactly the annotated precision. Missing or invented date components fail full credit. |
 | Collector's name | The written name or an explicitly approved alternative; no automatic expansion of initials. |
 | Country / State | Separate matches for explicitly written information. |
-| Location / Notes | Every annotated fact recovered, with no unmatched or repeated items. Fact comparison ignores punctuation and word order but retains every word, negation and number. Other wording requires explicit alternatives. |
+| Location / Notes | Every annotated fact recovered, with no unmatched or repeated items. Fact-list order and ordinary punctuation do not matter. Word order within a fact, negations, numeric signs and decimal values are retained. Other wording requires explicit alternatives. |
 | Region | The written region or an explicitly approved alternative; no geographical inference. |
 
 `valid_json` checks the complete schema. Usable fields still receive content credit
@@ -198,7 +198,7 @@ in each score's metadata. “Unsupported” means unsupported by the reference, 
 verified hallucination while the catalogue remains provisional.
 
 `specimen_exact` requires all nine fields to have assessable references and all nine
-content scores to pass. It is unscored for partially annotated specimens. Schema
+content scores to pass. It is unscored for partially annotated specimens or incomplete fact references. Schema
 compliance is separate: a content-perfect answer with an extra key can pass
 `specimen_exact` while failing `valid_json`.
 
@@ -220,19 +220,31 @@ Each annotation has an explicit status:
 The JSON has `schema_version: 2` and a `samples` object keyed by image filename.
 You may override individual fields; other fields fall back to the current CSV.
 Set a field to `unknown` explicitly to exclude a known-bad catalogue answer.
+For a nonexhaustive list of known facts, set `complete: false` on Location or Notes.
+The grader reports recall but excludes full-field accuracy and precision; unmatched
+predictions are recorded as `unverified`, not counted as unsupported additions.
+Reviewed fact references default to complete unless explicitly marked otherwise.
 Annotations are validated before inference and embedded in the saved targets.
 
 Without overrides, the existing CSV still works as **provisional reference data**.
 Blank cells become `unknown`, never `absent`. Country/state split at the first colon;
-simple binomials or hybrids followed by a capitalized author split into name/author.
-Complex taxonomic strings stay intact, with author unknown, until reviewed.
+the species parser separates parenthesized authorities, hybrid formulas, and
+infraspecific ranks, including authorities interleaved between ranks. Unrecognized
+or ambiguous syntax makes species and author unknown, preserving the raw text for
+review, instead of inventing a misleading split. Catalogue Notes are always treated
+as incomplete because plant remarks do not exhaust the label text requested by the
+prompt. Missing notes therefore do not establish absence.
 Location/Notes split at catalogue `/`, `:`, `;`, and `,` delimiters into provisional
 facts. These mechanical conversions cannot establish what is written on the label:
 curation should correct enriched names, inferred geography, ambiguous authorities,
 and fact boundaries. Each field's provenance is recorded in the log.
 
-This changes both the prompt and scoring policy. Existing logs are untouched;
-version-1 scores and outputs are not directly comparable to version 2.
+Grading version 3 leaves the version-2 prompt and output schema unchanged.
+Existing logs are untouched. When rescoring saved version-2 targets, the scorer
+upgrades catalogue-derived species/author splits and incomplete Notes in memory;
+reviewed overrides are preserved. New targets record reference conversion version 3.
+Rescore all compared runs with the same grader before comparing their scores.
+Version-1 outputs used a different prompt and are not directly comparable.
 
 ## Migration
 

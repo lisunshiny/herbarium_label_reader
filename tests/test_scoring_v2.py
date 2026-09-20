@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import unittest
 
 from inspect_ai.scorer import Target
-from scoring import OUTPUT_FIELDS, FACT_FIELDS, grade, label_fields, legacy_reference, parse_fields, validate_reference
+from scoring import OUTPUT_FIELDS, FACT_FIELDS, grade, label_fields, legacy_reference, parse_fields, validate_reference, split_species, prepare_reference, normalize
 
 
 def empty_answer():
@@ -19,6 +19,64 @@ def unknown_reference():
 
 
 class GradingRulesTests(unittest.TestCase):
+    def test_species_parser_handles_authorities_ranks_and_hybrids(self):
+        cases = {
+            'Dryopteris filix-mas (L.) Schott': ('Dryopteris filix-mas', '(L.) Schott'),
+            'Centaurea jacea L. subsp. jacea': ('Centaurea jacea subsp. jacea', 'L.'),
+            'Festuca rubra L. ssp. Caespitosa Hack.': ('Festuca rubra ssp. Caespitosa', 'L. Hack.'),
+            'Salix × rubens Schrank': ('Salix x rubens', 'Schrank'),
+            'Salix repens x purpurea Wim': ('Salix repens x purpurea', 'Wim'),
+            'Salix repens x Salix purpurea Wim': ('Salix repens x Salix purpurea', 'Wim'),
+            'Viola odorata x hirta': ('Viola odorata x hirta', ''),
+            'Andropogon Ischaemum L.': ('Andropogon Ischaemum', 'L.'),
+            'Solanum nigrum L. ssp. nigrum var. atriplicifolium (DESP.) G. MEY. f. atriplicifolium':
+                ('Solanum nigrum ssp. nigrum var. atriplicifolium f. atriplicifolium', 'L. (DESP.) G. MEY.'),
+        }
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(split_species(text), expected)
+        for text in ['Ajuga reptans L. var.', 'Unknown', 'Salix alba L. x fragilis L.']:
+            self.assertEqual(split_species(text), (None, None))
+
+    def test_rank_and_author_formatting_normalization_is_narrow(self):
+        self.assertEqual(normalize('Species name', 'Centaurea jacea ssp. jacea'),
+                         normalize('Species name', 'Centaurea jacea subsp. jacea'))
+        self.assertEqual(normalize('Species author', '(L.) P. B.'), normalize('Species author', '(L) P.B'))
+        self.assertNotEqual(normalize('Species author', 'Wim'), normalize('Species author', 'Wimm'))
+        self.assertNotEqual(normalize('Species author', '(L.) Schott'), normalize('Species author', 'L. Schott'))
+
+    def test_saved_catalogue_targets_upgrade_but_reviewed_targets_do_not(self):
+        reference = unknown_reference()
+        reference['Species name'] = {'status': 'present', 'source': 'catalogue', 'value': 'Dryopteris filix-mas (L.) Schott'}
+        reference['Species author'] = {'status': 'unknown', 'source': 'catalogue'}
+        upgraded = prepare_reference({'fields': reference})
+        self.assertEqual(upgraded['Species name']['value'], 'Dryopteris filix-mas')
+        self.assertEqual(upgraded['Species author']['value'], '(L.) Schott')
+        self.assertEqual(reference['Species name']['value'], 'Dryopteris filix-mas (L.) Schott')
+        reference['Species author'] = {'status': 'absent'}
+        self.assertEqual(prepare_reference({'fields': reference}), reference)
+
+    def test_incomplete_catalogue_notes_do_not_label_extra_text_as_unsupported(self):
+        reference = unknown_reference()
+        reference['Notes'] = {'status': 'present', 'source': 'catalogue', 'facts': [{'value': 'Neu für die Lausitz'}]}
+        reference = prepare_reference({'fields': reference})
+        values, details = grade({'Notes': ['Neu für die Lausitz', 'Acc. Nr. 93']}, False, reference)
+        self.assertEqual(values['Notes_recall'], 1)
+        self.assertTrue(math.isnan(values['Notes']))
+        self.assertTrue(math.isnan(values['Notes_precision']))
+        self.assertEqual(values['unsupported_additions'], 0)
+        self.assertEqual(details['Notes']['unverified'], ['Acc. Nr. 93'])
+        reference['Notes'].update(source='golden', complete=True)
+        values, _ = grade({'Notes': ['Neu für die Lausitz', 'Acc. Nr. 93']}, False, reference)
+        self.assertEqual(values['Notes'], 0)
+        self.assertEqual(values['unsupported_additions'], 1)
+
+    def test_fact_normalization_preserves_relationships_and_numeric_signs(self):
+        self.assertNotEqual(normalize('Location', 'north of A, south of B'),
+                            normalize('Location', 'south of A, north of B'))
+        self.assertNotEqual(normalize('Notes', 'temperature -5'), normalize('Notes', 'temperature 5'))
+        self.assertNotEqual(normalize('Notes', 'altitude 20.5 m'), normalize('Notes', 'altitude 205 m'))
+
     def test_species_identity_is_independent_of_author(self):
         reference = unknown_reference()
         reference['Species name'] = {'status': 'present', 'value': 'Salix repens × purpurea'}
@@ -78,7 +136,7 @@ class GradingRulesTests(unittest.TestCase):
         self.assertEqual(detail['Location']['unsupported'], ['near river'])
         self.assertEqual(scores['omitted_facts'], 1)
         self.assertEqual(scores['unsupported_additions'], 1)
-        answer = {'Location': ['Kiefern, unter', 'Roitz', 'Spremberg']}
+        answer = {'Location': ['unter Kiefern.', 'Roitz', 'Spremberg']}
         self.assertEqual(grade(answer, False, reference)[0]['Location'], 1)
         answer['Location'].append('Roitz')
         scores, _ = grade(answer, False, reference)
@@ -135,7 +193,7 @@ class GradingRulesTests(unittest.TestCase):
         target = Target(json.dumps({'schema_version': 2, 'fields': reference}))
         state = SimpleNamespace(output=SimpleNamespace(completion=json.dumps({'Country': 'Germany'})))
         result = asyncio.run(label_fields()(state, target))
-        self.assertEqual(result.metadata['scoring_version'], 2)
+        self.assertEqual(result.metadata['scoring_version'], 3)
         self.assertEqual(result.metadata['fields']['Country']['unsupported'], ['Germany'])
         self.assertIn('Notes', result.metadata['unscored_fields'])
 

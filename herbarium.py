@@ -82,7 +82,7 @@ def load_dataset(dataset_path: str, image_list: str, max_size: int, golden_file:
                 ContentText(text=PROMPT),
                 ContentImage(image=image_input(directory / name, max_size)),
             ])],
-            target=json.dumps({"schema_version": 2, "fields": {
+            target=json.dumps({"schema_version": 2, "reference_version": 3, "fields": {
                 **legacy_reference(rows[name]), **annotations.get(name, {})}}, ensure_ascii=False),
             metadata={"source_image": name, "max_size": max_size,
                       "golden_fields": list(annotations.get(name, {})),
@@ -104,5 +104,5 @@ def herbarium(
         dataset=load_dataset(dataset_path, image_list, max_size, golden_file),
         solver=generate(),
         scorer=label_fields(),
-        version=2,
+        version=3,
     )
