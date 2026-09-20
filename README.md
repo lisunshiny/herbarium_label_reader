@@ -1,302 +1,166 @@
 # Herbarium Label Reader
 
-## Fork attribution and original research
+Evaluate vision models on historical herbarium labels using
+[Inspect AI](https://inspect.aisi.org.uk/). Each sample sends a whole specimen
+image to a model and scores its structured transcription against reference fields.
 
-**This is an independently maintained fork of
-[Atlas8008/herbarium_label_reader](https://github.com/Atlas8008/herbarium_label_reader),
-the original Herbarium Label Reader developed by Matthias Körschens and upstream
-contributors.** Credit for the original software, research methodology, and
-benchmark belongs to their respective authors and data providers. This fork
-adapts that work to Inspect; it is not the authors' original implementation or
-an endorsed reproduction of their published results.
+This project builds on the research and
+[original implementation](https://github.com/Atlas8008/herbarium_label_reader)
+by Matthias Körschens and collaborators, using specimen scans and catalogue data
+from Herbarium Senckenbergianum Görlitz (GLM). This fork replaces the evaluation
+pipeline with Inspect AI and introduces a different prompt, revised golden
+references, and deterministic field scoring. Its scores are not directly
+comparable with the original paper's results.
 
-Please cite the original paper when building on this work:
+## Original research and data
 
-> Körschens, Matthias; Bucher, Solveig Franziska; Ritz, Christiane M.; Gebauer,
-> Sebastian; Wesenberg, Jens; and Römermann, Christine (2026). **Large language
-> vision models for zero-shot handwriting recognition of historical herbarium
-> labels.** *Ecological Informatics*, **94**, 103656.
-> [doi:10.1016/j.ecoinf.2026.103656](https://doi.org/10.1016/j.ecoinf.2026.103656)
-> ([publisher page](https://www.sciencedirect.com/science/article/pii/S1574954126000622)).
+Please cite both the paper and dataset when using this work:
 
-The specimen scans and reference labels are provided by **Herbarium
-Senckenbergianum Görlitz (GLM), Senckenberg Museum für Naturkunde Görlitz**:
-*Herbarium specimens scans (GLM) and associated label data used for zero-shot
-handwriting recognition of historical herbarium labels* (2025), version v1,
-Zenodo. [doi:10.5281/zenodo.17714208](https://doi.org/10.5281/zenodo.17714208).
-Please also cite this dataset when using it.
+- Matthias Körschens, Solveig Franziska Bucher, Christiane M. Ritz, Sebastian
+  Gebauer, Jens Wesenberg, and Christine Römermann (2026).
+  **Large language vision models for zero-shot handwriting recognition of
+  historical herbarium labels.** *Ecological Informatics*, 94, 103656.
+  [Paper](https://doi.org/10.1016/j.ecoinf.2026.103656).
+- Herbarium Senckenbergianum Görlitz (GLM) (2025).
+  **Herbarium specimens scans (GLM) and associated label data used for zero-shot
+  handwriting recognition of historical herbarium labels**, v1.
+  [Dataset](https://doi.org/10.5281/zenodo.17714208).
 
-This fork replaces the original detection and extraction framework with a
-whole-image Inspect task and changes the prompt and scoring rules. See
-[Migration](#migration) for the differences. For reproducible reports, cite the
-paper and dataset and identify this fork's exact Git commit, model, prompt,
-image resolution, and scoring policy. [CITATION.cff](CITATION.cff) supplies
-machine-readable citations. The original MIT copyright and license notice are
-preserved unchanged; the dataset has a separate license described below.
-
-## Inspect implementation
-
-A minimal [Inspect](https://inspect.aisi.org.uk/) evaluation: one whole specimen
-image → one model response → deterministic field scores. No detection, cropping,
-agents, tools, or model-based grading.
+The original researchers and data providers supplied the foundation for this
+work: the study, specimen dataset, catalogue references, and upstream software.
+The Inspect implementation and reference revisions are changes made in this fork.
+[CITATION.cff](CITATION.cff) contains the citations. When reporting results from
+this fork, also record its Git commit and the exact reference snapshot used.
 
 ## Setup
 
-Use **Python 3.14.7**, pinned in `.python-version`, and
-[uv](https://docs.astral.sh/uv/getting-started/installation/) to install the
-locked environment. `pyproject.toml` declares the supported Python 3.14 series
-and direct dependencies; `uv.lock` pins their transitive dependencies and hashes.
-Run these commands from the repository root:
+Install [uv](https://docs.astral.sh/uv/) and download and extract
+[GLM_scans_mini.zip from Zenodo](https://zenodo.org/records/17714208).
+From the repository root:
 
 ```bash
 uv sync --locked
-source .venv/bin/activate
-python --version  # Python 3.14.7
+cp .env.example .env
 ```
 
-`uv sync --locked` downloads the pinned Python if needed, creates or updates
-`.venv`, installs this project and its Inspect extension, and removes packages
-outside the lockfile. This replaces an older Python 3.11 environment and removes
-leftover Gradio/Hydra packages. If your shell was already activated, run
-`deactivate` before syncing and activate `.venv` again afterward.
+Set `OPENROUTER_API_KEY` in `.env` or your shell. The environment uses Python
+3.14.7, pinned in `.python-version`, and dependencies pinned in `uv.lock`.
 
-Use a current uv release (this setup was resolved with uv 0.12.17). If an older
-uv reports that Python 3.14.7 cannot be downloaded, update uv using the same
-method you installed it with (`uv self update` for the standalone installer).
-Alternatively, use `uv tool run --from uv==0.12.17 uv sync --locked` without
-replacing your installed uv.
+The extracted dataset directory should contain `handwritten/` and `printed/`,
+each with its specimen images and `label_data.csv`. The lists in `data/` select
+100 handwritten and 100 printed specimens.
 
-After pulling repository updates, rerun `uv sync --locked`. You can also run
-commands without activation, for example `uv run --locked inspect view`.
-`requirements.txt` remains an editable pip-install compatibility entry point,
-but it does not enforce `uv.lock`; use uv for reproducible runs.
+## Run an evaluation
 
-To intentionally update dependencies, edit the relevant pins in `pyproject.toml`,
-then run:
+Set `MODEL_ID` to an OpenRouter vision model ID, then run:
 
 ```bash
-uv lock
-uv sync --locked
-uv run --locked python -m unittest discover -s tests -v
-```
-
-Use `uv lock --upgrade` only when you intend to refresh transitive dependencies
-as well. Commit `pyproject.toml`, `.python-version`, and `uv.lock` changes together
-as applicable. Keep `.venv` untracked.
-
-Run commands from the repository root. Set `OPENROUTER_API_KEY` in your shell or in
-`.env` (see `.env.example`). Inspect loads `.env`; exported values take precedence.
-Keep real credentials out of
-tracked files and command-line model arguments.
-
-## Run
-
-With the local GLM dataset:
-
-```bash
-inspect eval herbarium.py \
-  -T dataset_path=/Users/liann/Downloads/GLM_scans_mini \
-  --model openrouter-cost/openai/gpt-5.6-luna \
-  --reasoning-effort medium \
+export MODEL_ID='provider/model-name'
+uv run --locked inspect eval herbarium.py \
+  -T dataset_path=/path/to/GLM_scans_mini \
+  -T golden_file=/path/to/handwritten-goldens.json \
+  --model "openrouter-cost/$MODEL_ID" \
   --limit 1
 ```
 
-Remove `--limit 1` to evaluate the entire list. This runs paid inference. Inspect
-handles concurrency, retries, sample selection, and logs. Use `--max-connections 1`
-for sequential model requests, or a larger value for concurrent independent samples.
-Use `--sample-id 'GLM-15793_Salix_×_doniana.jpg'` to select a specific specimen.
+Replace the placeholder paths and model ID. Remove `--limit 1` for the full split.
+For printed labels, add `-T image_list=data/printed.txt` and supply the printed
+reference file. Omitting `golden_file` uses the original catalogue through a
+provisional conversion; it does **not** reproduce runs using the revised goldens.
 
-The default list is `data/handwritten.txt`. Each filename is joined to `Bildname`
-in `<dataset_path>/handwritten/label_data.csv`, preserving list order. The image
-comes from the same `handwritten` directory. For printed labels, add
-`-T image_list=data/printed.txt`; the directory is derived from the list's stem.
-Missing images, missing references, duplicate filenames, and malformed reference
-rows fail before inference. The image list defines the evaluation population;
-extra rows in the reference CSV are ignored.
+Images are EXIF-oriented and resized in memory to a maximum side of 2048 pixels,
+without upscaling. Set `-T max_size=4096` to change that limit. The model receives
+the image and [prompt](prompt.txt); filenames and reference answers are not sent
+as text. Image preparation covers the selected list before Inspect applies
+`--limit`.
 
-Whole images are oriented from EXIF, resized in memory to a maximum side of 2048
-pixels without upscaling, and sent as JPEG. Change this with `-T max_size=4096`.
-Images are prepared when the task is loaded, before Inspect applies `--limit`, so
-loading a large list takes time even for a one-sample run. No resized files are
-saved. Filenames, EXIF metadata, and ground-truth text are not included in model
-messages; sample IDs and reference answers remain in the evaluation logs.
-
-All inference goes through OpenRouter. Use `openrouter-cost/<OpenRouter model ID>`,
-for example `openrouter-cost/google/gemini-2.5-pro`. The small adapter in
-[openrouter_cost.py](openrouter_cost.py) extends Inspect's OpenRouter provider to
-preserve the charge returned by the API. `uv sync --locked` registers
-this extension with Inspect (rerun it when updating an existing checkout). It uses `OPENROUTER_API_KEY` and supports
-Inspect's OpenRouter options, including `OPENROUTER_BASE_URL`.
-Model availability and reasoning settings depend on the selected model.
-
-## Results and scoring
+Inspect handles inference, concurrency, retries, and logs. To view results:
 
 ```bash
-inspect view
+uv run --locked inspect view
 ```
 
-Inspect writes `.eval` files to `logs/`, with specimen inputs, model responses,
-reference targets, per-field scores, timing, and token usage. There is no custom
-CSV output or billing estimator.
+The `openrouter-cost/` provider records API-returned charges in Inspect logs,
+including separately reported upstream costs for BYOK requests. Missing billing
+information remains unknown. Do not use `--model-cost-config`, which replaces
+returned charges with estimates, or rely on `--cost-limit` with this adapter.
 
-### Recording cost
+## Revised golden references
 
-Cost is recorded automatically with the `openrouter-cost/` provider. OpenRouter
-returns [`usage.cost`](https://openrouter.ai/docs/cookbook/administration/usage-accounting),
-the amount charged to your OpenRouter account, in each response. For regular
-OpenRouter calls this becomes `total_cost`. For BYOK calls (`is_byok: true`),
-`total_cost` is OpenRouter's charge plus the separately returned
-`cost_details.upstream_inference_cost`. The upstream amount is never added for
-regular routing, where that would double-count costs. Inspect saves totals in each
-sample's `output.usage` and `model_usage`, and the run's `stats.model_usage`.
-Both components are preserved in `output.metadata.openrouter_billing`. No pricing file, token-based
-calculation, or extra API request is needed. The raw response retains the billing
-details, including any separate upstream inference cost.
+The original catalogue is the starting point for our reference revisions. As the
+[dataset documentation](https://zenodo.org/records/17714208) explains, catalogue
+entries can include information beyond the literal label, and names and dates
+were not fully reverted to the written text. Our prompt asks for information
+supported by the label, so we revised reference fields to match that task.
 
-Use `inspect view` to inspect the logs. Do not pass `--model-cost-config`: Inspect
-would overwrite the returned charge with its calculated estimate. The plain
-`openrouter/` provider currently drops the returned cost in the pinned Inspect
-version; the `openrouter-cost/` prefix enables this adapter.
+The current working goldens combine human-approved corrections and AI-reviewed
+annotations, with image and OCR evidence used during review. Model agreement
+was used in preparing some annotations. These references should not be described
+as an independently human-transcribed gold standard. Notes are marked unknown
+in the current run snapshots and excluded from content scoring, although the
+prompt still requests them.
 
-A returned zero is recorded as zero. Missing or invalid costs remain unknown and
-produce a warning; aggregated totals may then be incomplete. These logs account
-for returned successful generations, not an account-wide bill or credit-purchase
-fees. Missing BYOK billing components remain unknown rather than being treated as zero. Inspect's live cost-limit enforcement in
-this version relies on configured prices, so do not rely on `--cost-limit` with
-this adapter; set spending limits in OpenRouter instead.
+The working goldens and review tooling are local and are not distributed in this
+repository. [goldens.example.json](goldens.example.json) documents the format
+with a synthetic example. To reproduce a run, retain its exact golden file,
+review provenance, and file hash alongside the code revision and model settings.
 
-### Grading rules (version 3; unchanged version-2 prompt)
+Golden files use `schema_version: 2`, with samples keyed by image filename.
+Each field has one of these statuses:
 
-The prompt requests nine fields: `Species name`, `Species author`, `Collection date`,
-`Collector's name`, `Country`, `State`, `Location`, `Region`, and `Notes`. All are
-strings except `Location` and `Notes`, which are lists with one complete fact per
-item. Unknown or absent model answers use `""` or `[]`.
+- `present`: an expected value or list of facts, optionally with accepted alternatives.
+- `absent`: the answer must be empty.
+- `unknown`, `unreadable`, or `uncertain`: excluded from content scoring.
 
-| Field | Full-credit rule |
-|---|---|
-| Species name | Complete scientific name, including hybrid parents, scored independently of author. Normalize case, whitespace, `×`/`x`, and `ssp.`/`subsp.` or `v.`/`var.` rank abbreviations; no inferred synonyms. |
-| Species author | Separate match ignoring abbreviation periods and spacing, or an explicitly approved alternative. Parentheses and author spelling are retained. |
-| Collection date | Normalized German/ISO date with exactly the annotated precision. Missing or invented date components fail full credit. |
-| Collector's name | The written name or an explicitly approved alternative; no automatic expansion of initials. |
-| Country / State | Separate matches for explicitly written information. |
-| Location / Notes | Every annotated fact recovered, with no unmatched or repeated items. Fact-list order and ordinary punctuation do not matter. Word order within a fact, negations, numeric signs and decimal values are retained. Other wording requires explicit alternatives. |
-| Region | The written region or an explicitly approved alternative; no geographical inference. |
+Overrides apply field by field; unspecified fields fall back to the catalogue.
+Blank catalogue values become unknown, not confirmed absent. Location and Notes
+can use `complete: false` for partial references: recall is scored, but full-field
+accuracy and precision are excluded. References are validated before inference
+and embedded in the evaluation log.
 
-`valid_json` checks the complete schema. Usable fields still receive content credit
-when another field is missing, malformed or duplicated, or extra keys are present.
-A duplicated field is not graded as a usable answer. Invalid JSON is not repaired.
-Missing keys do not count as correct empty answers, even for absent reference fields.
+## Scoring
 
-The log includes per-field accuracy, `field_accuracy` (the mean across assessable
-fields within each specimen), date year/month/day diagnostics, and Location/Notes
-fact precision and recall. Precision is unscored when no facts are predicted;
-recall is unscored when no facts are expected. `omitted_facts` and
-`unsupported_additions` are counts per specimen (averaged over the run); a wrong
-scalar value counts as one omitted expected value and one unsupported prediction.
-An extra duplicate fact counts as an unmatched prediction. Error details are saved
-in each score's metadata. “Unsupported” means unsupported by the reference, not a
-verified hallucination while the catalogue remains provisional.
+[scoring.py](scoring.py) implements grader **version 5**. The output schema has
+nine fields: species name, species author, collection date, collector, country,
+state, location, region, and notes. Location and Notes are lists; the other fields
+are strings.
 
-`specimen_exact` requires all nine fields to have assessable references and all nine
-content scores to pass. It is unscored for partially annotated specimens or incomplete fact references. Schema
-compliance is separate: a content-perfect answer with an extra key can pass
-`specimen_exact` while failing `valid_json`.
+The grader uses field-specific normalization and explicit accepted alternatives.
+It checks the full species name separately from its author and preserves the
+precision of collection dates. Location matching tolerates split or combined
+facts, recognized MTB grid and elevation notation, and a fixed list of habitat
+and soil terms. Required locality facts and unmatched additions still affect the
+score. The exact normalization and context allowlist are defined in the scorer.
 
-### Human-checked answer keys (optional)
+The main metric, `field_accuracy`, averages assessable field scores within each
+specimen; Inspect then reports the mean across specimens. Logs also include
+per-field accuracy, JSON validity, date components, fact precision and recall,
+and counts of omissions and unsupported additions. “Unsupported” means absent
+from the reference, which may itself be incomplete or incorrect.
 
-Use `-T golden_file=/path/to/goldens.json` to override catalogue fields with reviewed
-answers. [goldens.example.json](goldens.example.json) illustrates the format with a
-**synthetic example, not a verified transcription**. Replace its filename and
-annotations with your own; nothing in this file is loaded by default.
+`specimen_exact` requires complete, assessable references for all nine fields.
+It is unscored for the current goldens because Notes are excluded. JSON validity
+is scored separately from content accuracy. Compare runs using the same prompt,
+reference snapshot, image settings, and grader version.
 
-Each annotation has an explicit status:
+## Development and results
 
-- `present`: requires a string `value`, or `facts` for Location/Notes. Optional
-  `alternatives` list reviewed equivalent strings for that value or individual fact.
-- `absent`: a correctly typed empty answer earns credit; nonempty output is an addition.
-- `unknown`, `unreadable`, or `uncertain`: excluded from accuracy and addition/omission
-  counts. Predictions remain in the log for review.
-
-The JSON has `schema_version: 2` and a `samples` object keyed by image filename.
-You may override individual fields; other fields fall back to the current CSV.
-Set a field to `unknown` explicitly to exclude a known-bad catalogue answer.
-For a nonexhaustive list of known facts, set `complete: false` on Location or Notes.
-The grader reports recall but excludes full-field accuracy and precision; unmatched
-predictions are recorded as `unverified`, not counted as unsupported additions.
-Reviewed fact references default to complete unless explicitly marked otherwise.
-Annotations are validated before inference and embedded in the saved targets.
-
-Without overrides, the existing CSV still works as **provisional reference data**.
-Blank cells become `unknown`, never `absent`. Country/state split at the first colon;
-the species parser separates parenthesized authorities, hybrid formulas, and
-infraspecific ranks, including authorities interleaved between ranks. Unrecognized
-or ambiguous syntax makes species and author unknown, preserving the raw text for
-review, instead of inventing a misleading split. Catalogue Notes are always treated
-as incomplete because plant remarks do not exhaust the label text requested by the
-prompt. Missing notes therefore do not establish absence.
-Location/Notes split at catalogue `/`, `:`, `;`, and `,` delimiters into provisional
-facts. These mechanical conversions cannot establish what is written on the label:
-curation should correct enriched names, inferred geography, ambiguous authorities,
-and fact boundaries. Each field's provenance is recorded in the log.
-
-Grading version 3 leaves the version-2 prompt and output schema unchanged.
-Existing logs are untouched. When rescoring saved version-2 targets, the scorer
-upgrades catalogue-derived species/author splits and incomplete Notes in memory;
-reviewed overrides are preserved. New targets record reference conversion version 3.
-Rescore all compared runs with the same grader before comparing their scores.
-Version-1 outputs used a different prompt and are not directly comparable.
-
-## Migration
-
-This replaces the previous Hydra runner, Gradio application, custom model
-adapters, DINO preprocessing, multi-specimen prompts, CSV parser, and evaluator
-with one Inspect task and one scorer. The regression plots, embedding metrics,
-Slurm launchers, and heavyweight ML dependencies have been removed. Original
-image lists, existing output files, and Git history remain available.
-
-Old commands (`extract_data.py`, `app.py`, and `evaluate.py`) no longer apply.
-Old runs are available in `outputs/`; the previous implementation is preserved in
-commit `611d435`. New scores are not directly comparable with old scores: the old
-evaluator compared only the first two species-name words, date year, and final
-collector-name word. The prompt, response format, and scoring policy also changed.
-
-The task and grading code is `herbarium.py`, `scoring.py`, and `prompt.txt`;
-`openrouter_cost.py` preserves provider-returned charges. Optional
-future analysis or CSV export can use Inspect's [log API](https://inspect.aisi.org.uk/eval-logs.html).
-
-## Offline tests
+The evaluation lives in [herbarium.py](herbarium.py), the extraction instructions
+in [prompt.txt](prompt.txt), and the billing adapter in
+[openrouter_cost.py](openrouter_cost.py). Run the offline tests with:
 
 ```bash
 uv run --locked python -m unittest discover -s tests -v
 ```
 
-Tests exercise image preparation, reference joins, strict JSON parsing,
-normalization, blank-reference handling, provider credential separation, and a
-complete Inspect evaluation with mock responses and saved usage. No paid model
-calls are made.
+Raw evaluation logs, local run artifacts, and temporary review tools are ignored
+by Git. Results added to the repository should be curated summaries identifying
+the models, sample counts, settings, code revision, grader version, and reference
+snapshot, with a link to archived logs when available.
 
 ## License
 
-The software remains under the **MIT License**; see [LICENSE](LICENSE). The
-upstream notice, **Copyright (c) 2025 Atlas**, and the complete permission and
-warranty terms are retained unchanged. Include that notice and license when
-redistributing copies or substantial portions of the software. Citation is
-requested for scientific credit, not added as a new restriction on the MIT license.
-
-The GLM scans and associated reference data are separately licensed **CC BY-SA
-4.0**, as recorded in the [Zenodo metadata](https://zenodo.org/api/records/17714208).
-They are not relicensed under MIT. When sharing these materials, retain source
-and creator attribution, link the [CC BY-SA 4.0 license](https://creativecommons.org/licenses/by-sa/4.0/),
-and identify changes. Shared adaptations must use CC BY-SA 4.0 or a compatible
-license. This includes resized specimen images embedded in shared Inspect logs;
-the task applies EXIF orientation, whole-image resizing, and JPEG conversion.
-The dataset itself is downloaded separately, and evaluation logs are Git-ignored.
-
-The dataset documentation notes that date and name entries were not corrected
-back to literal label text. Account for this when interpreting exact-match
-scores or publishing claims about transcription errors.
-
-Inspect and other installed dependencies retain their own licenses. This
-repository references them as dependencies rather than vendoring their source;
-retain their applicable notices if distributing an environment or application
-bundle containing them.
+Code is licensed under [MIT](LICENSE), retaining the original
+Copyright (c) 2025 Atlas notice. GLM scans and associated label data have a separate
+[CC BY-SA 4.0 license](https://creativecommons.org/licenses/by-sa/4.0/).
+Derived reference annotations retain the dataset attribution and license.

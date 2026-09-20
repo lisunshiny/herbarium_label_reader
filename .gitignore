@@ -213,3 +213,10 @@ __marimo__/
 
 # Inspect evaluation logs (may include specimen images and model transcripts)
 logs/
+
+# Local evaluation runs and temporary review tooling (not shipped)
+/runs/
+/review/
+/review_app.py
+/review_ui.html
+/tests/test_review_app.py
