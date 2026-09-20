@@ -1,0 +1,53 @@
+cff-version: 1.2.0
+message: >-
+  Please cite the original research paper and GLM dataset when using this work.
+  Identify this independent Inspect fork and its exact commit separately when
+  reporting results. The preferred citation below is the upstream paper, not
+  a paper describing this fork.
+title: "Herbarium Label Reader (Inspect fork)"
+type: software
+authors:
+  - family-names: Körschens
+    given-names: Matthias
+  - family-names: Sun
+    given-names: Liann
+repository-code: "https://github.com/lisunshiny/herbarium_label_reader"
+license: MIT
+preferred-citation:
+  type: article
+  title: "Large language vision models for zero-shot handwriting recognition of historical herbarium labels"
+  authors:
+    - family-names: Körschens
+      given-names: Matthias
+    - family-names: Bucher
+      given-names: Solveig Franziska
+    - family-names: Ritz
+      given-names: Christiane M.
+    - family-names: Gebauer
+      given-names: Sebastian
+    - family-names: Wesenberg
+      given-names: Jens
+    - family-names: Römermann
+      given-names: Christine
+  journal: Ecological Informatics
+  volume: "94"
+  start: "103656"
+  year: 2026
+  month: 3
+  doi: "10.1016/j.ecoinf.2026.103656"
+references:
+  - type: software
+    title: "Herbarium Label Reader (original upstream implementation)"
+    authors:
+      - family-names: Körschens
+        given-names: Matthias
+    repository-code: "https://github.com/Atlas8008/herbarium_label_reader"
+    license: MIT
+  - type: data
+    title: "Herbarium specimens scans (GLM) and associated label data used for zero-shot handwriting recognition of historical herbarium labels"
+    authors:
+      - name: "Herbarium Senckenbergianum Görlitz (GLM)"
+    version: v1
+    year: 2025
+    doi: "10.5281/zenodo.17714208"
+    license: CC-BY-SA-4.0

@@ -1,0 +1,6 @@
+Read the herbarium specimen label in the image. Extract only information supported by the label; do not guess, translate, expand initials, or substitute taxonomic synonyms. Retain the complete species name and author abbreviation when present. Do not add commentary or infer a region from a location.
+
+Return exactly one JSON object with these seven keys and string values:
+{"Species name": "", "Collection date": "", "Collector's name": "", "Country/State": "", "Location": "", "Region": "", "Notes": ""}
+
+Use an empty string for information that is absent or unreadable. Format a readable collection date as YYYY-MM-DD; if only a month or year is present, use YYYY-MM or YYYY respectively. Preserve the full collector name as written. Include all locality and habitat details under Location. Use Country: State when both are explicitly present. Notes should contain other relevant label text, not your own observations. Return JSON only, without Markdown fences.

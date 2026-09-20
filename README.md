@@ -1,257 +1,219 @@
 # Herbarium Label Reader
 
-A project for digitizing herbarium specimen labels by combining modern visual grounding and large language models in a single extraction pipeline. The system uses zero-shot object localization (Grounding DINO) to find label regions and large language-and-vision models (LLVMs) to extract and structure textual information from those regions. Supported providers in the codebase include OpenRouter (vision models via its OpenAI-compatible API), Google (Gemini via google-genai), OpenAI (GPT family), Groq (LLaMA-family models served via the Groq API), and Ollama (local or remote Ollama-hosted models).
+## Fork attribution and original research
 
-## Key Features
+**This is an independently maintained fork of
+[Atlas8008/herbarium_label_reader](https://github.com/Atlas8008/herbarium_label_reader),
+the original Herbarium Label Reader developed by Matthias Körschens and upstream
+contributors.** Credit for the original software, research methodology, and
+benchmark belongs to their respective authors and data providers. This fork
+adapts that work to Inspect; it is not the authors' original implementation or
+an endorsed reproduction of their published results.
 
-- Zero-shot label localization using Grounding DINO
-- Visual + language extraction using LLMs/LLVMs (Gemini, OpenAI GPTs, LLaMA-family models served via the Groq API)
-- Single-image interactive processing and bulk/batch processing
-- Exportable structured outputs (CSV/JSON)
-- Hydra-based experiment orchestration and reproducible output directories
+Please cite the original paper when building on this work:
 
-## Project Structure
+> Körschens, Matthias; Bucher, Solveig Franziska; Ritz, Christiane M.; Gebauer,
+> Sebastian; Wesenberg, Jens; and Römermann, Christine (2026). **Large language
+> vision models for zero-shot handwriting recognition of historical herbarium
+> labels.** *Ecological Informatics*, **94**, 103656.
+> [doi:10.1016/j.ecoinf.2026.103656](https://doi.org/10.1016/j.ecoinf.2026.103656)
+> ([publisher page](https://www.sciencedirect.com/science/article/pii/S1574954126000622)).
 
-```
-herbarium_label_reader/
-├── app.py                 # Gradio web app (single & batch interfaces)
-├── extract_data.py        # Hydra-driven experiment runner / batch extractor
-├── evaluate.py            # Script to compare extracted CSVs with ground truth
-├── evaluate_all.sh        # Helper for running multiple evaluations
-├── run_experiments.sh     # Example hydra multirun invocation
-├── webapp/                # Webapp helpers (process_request.py)
-├── preprocessors/         # Preprocessor implementations (Grounding DINO)
-├── llms/                  # Wrappers for Gemini/OpenAI/Groq/Ollama models
-├── requirements.txt
-└── config.yaml            # Default hydra configuration
-```
+The specimen scans and reference labels are provided by **Herbarium
+Senckenbergianum Görlitz (GLM), Senckenberg Museum für Naturkunde Görlitz**:
+*Herbarium specimens scans (GLM) and associated label data used for zero-shot
+handwriting recognition of historical herbarium labels* (2025), version v1,
+Zenodo. [doi:10.5281/zenodo.17714208](https://doi.org/10.5281/zenodo.17714208).
+Please also cite this dataset when using it.
+
+This fork replaces the original detection and extraction framework with a
+whole-image Inspect task and changes the prompt and scoring rules. See
+[Migration](#migration) for the differences. For reproducible reports, cite the
+paper and dataset and identify this fork's exact Git commit, model, prompt,
+image resolution, and scoring policy. [CITATION.cff](CITATION.cff) supplies
+machine-readable citations. The original MIT copyright and license notice are
+preserved unchanged; the dataset has a separate license described below.
+
+## Inspect implementation
+
+A minimal [Inspect](https://inspect.aisi.org.uk/) evaluation: one whole specimen
+image → one model response → deterministic field scores. No detection, cropping,
+agents, tools, or model-based grading.
 
 ## Setup
 
-1. Create and activate a virtual environment:
-```bash
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-```
+Python 3.11 or newer:
 
-2. Install dependencies:
 ```bash
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-3. Configure API keys and provider credentials:
-Create a `.env` file at the project root (see `.env.example`). Both entry points load this exact file without overriding exported environment variables. Set only the credentials for the providers you use:
-```
-# For OpenAI models
-OPENAI_API_KEY=...
+Run commands from the repository root. Set `OPENAI_API_KEY` in your shell or in
+`.env` (see `.env.example`). Inspect loads `.env`; exported values take precedence.
+OpenRouter uses its separate `OPENROUTER_API_KEY`. Keep real credentials out of
+tracked files and command-line model arguments.
 
-# For Google Gemini (google-genai)
-GEMINI_API_KEY=...
+## Run
 
-# For Groq
-GROQ_API_KEY=...
-```
-
-## Running Experiments
-
-To run experiments on a dataset of herbarium labels:
+With the local GLM dataset:
 
 ```bash
-./run_experiments.sh /path/to/dataset/images /path/to/output_directory
+inspect eval herbarium.py \
+  -T dataset_path=/Users/liann/Downloads/GLM_scans_mini \
+  --model openai/gpt-5.6-luna \
+  -M responses_api=true \
+  --reasoning-effort medium \
+  --model-cost-config pricing.yaml \
+  --limit 1
 ```
 
-Notes:
-- `run_experiments.sh` invokes `extract_data.py` under hydra multirun. Outputs go into the hydra sweep directory (see config.yaml hydra.sweep.dir and printed output path).
-- `extract_data.py` reads image paths from the list pointed to by config.image_list and the dataset root at config.dataset_path (see config.yaml). Adjust config.yaml or pass overrides via hydra/CLI if needed.
+Remove `--limit 1` to evaluate the entire list. This runs paid inference. Inspect
+handles concurrency, retries, sample selection, and logs. Use `--max-connections 1`
+for sequential model requests, or a larger value for concurrent independent samples.
+Use `--sample-id 'GLM-15793_Salix_×_doniana.jpg'` to select a specific specimen.
 
-You can run a single extraction job (no sweep) by calling the script with hydra overrides, for example:
+The default list is `data/handwritten.txt`. Each filename is joined to `Bildname`
+in `<dataset_path>/handwritten/label_data.csv`, preserving list order. The image
+comes from the same `handwritten` directory. For printed labels, add
+`-T image_list=data/printed.txt`; the directory is derived from the list's stem.
+Missing images, missing references, duplicate filenames, and malformed reference
+rows fail before inference. The image list defines the evaluation population;
+extra rows in the reference CSV are ignored.
+
+Whole images are oriented from EXIF, resized in memory to a maximum side of 2048
+pixels without upscaling, and sent as JPEG. Change this with `-T max_size=4096`.
+Images are prepared when the task is loaded, before Inspect applies `--limit`, so
+loading a large list takes time even for a one-sample run. No resized files are
+saved. Filenames, EXIF metadata, and ground-truth text are not included in model
+messages; sample IDs and reference answers remain in the evaluation logs.
+
+For OpenRouter, use Inspect's provider syntax (slashes, not the old colon prefix):
 
 ```bash
-python extract_data.py dataset_path=/absolute/path/to/dataset image_list=data/handwritten.txt n_images=50 llm.model_name=gemini-2.5-pro
-
-# Or use Ollama models:
-python extract_data.py dataset_path=/absolute/path/to/dataset image_list=data/handwritten.txt n_images=50 llm.model_name=ollama:gemma4:31b
-# Or remote Ollama server:
-python extract_data.py dataset_path=/absolute/path/to/dataset image_list=data/handwritten.txt n_images=50 llm.model_name=ollama:gemma4:31b remote_server=http://localhost:11434
+inspect eval herbarium.py \
+  -T dataset_path=/Users/liann/Downloads/GLM_scans_mini \
+  --model openrouter/google/gemini-2.5-pro \
+  --limit 1
 ```
-The script saves a CSV named `extracted_data.csv` inside the hydra-run output directory.
 
-## Evaluating Results
+Model support and account access depend on the provider. Native Inspect provider
+settings apply, including `OPENAI_BASE_URL` and `OPENROUTER_BASE_URL` if set.
+See [provider configuration](https://inspect.aisi.org.uk/providers.html).
 
-The evaluation script compares extracted data against ground truth data. Use it as follows:
+## Results and scoring
 
 ```bash
-python evaluate.py \
-    --extracted_csv /path/to/results/extracted_data.csv \
-    --ground_truth_csv /path/to/ground_truth/label_data.csv \
-    --output_csv /path/to/output/evaluation_results.csv
+inspect view
 ```
 
-## Web Application
+Inspect writes `.eval` files to `logs/`, with specimen inputs, model responses,
+reference targets, per-field scores, timing, and token usage. There is no custom
+CSV output or billing estimator.
 
-The web application provides two main interfaces for processing herbarium labels:
+### Recording cost
 
-### Single Prediction Interface
+Pass `--model-cost-config pricing.yaml` to have Inspect calculate USD cost estimates
+and save `total_cost` with sample and run model usage in the `.eval` log. This uses
+Inspect's [native cost configuration](https://inspect.aisi.org.uk/setting-limits.html),
+not a project-specific calculator. Without configured pricing, cost can be absent
+even when token counts are recorded. Existing logs are not retroactively modified.
 
-- Upload a single image, optionally enable Grounding DINO and tune thresholds and prompt.
-- The server optionally runs Grounding DINO to crop/detect label regions (controlled by checkboxes/sliders).
-- A selected LLVM receives the image regions plus the prompt and returns a structured, line-wise *key: value* output.
-- The UI shows:
-  - JSON: structured extracted fields (key:value)
-  - Gallery: processed image regions (cropped/annotated)
-- Useful for interactive inspection, manual correction, and quick sampling.
+[pricing.yaml](pricing.yaml) records the source URL, verification date, and rates
+for direct OpenAI `gpt-5.6-luna`: $0.20 input, $0.25 cache writes, $0.02 cache reads,
+and $1.20 output per million tokens. These are the
+[Standard short-context rates](https://developers.openai.com/api/docs/pricing).
+Update/add provider-qualified entries for other models or pricing changes;
+OpenRouter and other service tiers may have different rates.
 
-### Batch Prediction Interface
+Inspect separates regular input (`I`), cache writes (`CW`), and cache reads (`CR`).
+Reasoning tokens (`R`) are already included in output (`O`), so they must not be
+charged twice. For example, `I=3, CW=3344, CR=0, O=577` estimates **$0.001529**.
+These are usage-based estimates, not billing receipts; provider charges remain
+authoritative. Keep the pricing-file version with the run's reproducibility record.
 
-- Upload multiple image files at once (multiple-file selection).
-- The batch pipeline processes each file sequentially: optional Grounding DINO -> LLM prompt -> result parsing.
-- Progress is shown in the UI; on completion the app returns:
-  - JSON: list of extraction results for immediate inspection
-  - Gallery: all processed regions across the batch
-  - Downloadable file: CSV or JSON file with all results
+The prompt in `prompt.txt` requests exactly seven string-valued JSON fields:
 
-To launch the web app:
+| Output field | Reference column |
+|---|---|
+| Species name | Spezies Label |
+| Collection date | Sammeldatum |
+| Collector's name | Sammler |
+| Country/State | Geographische_Zuordnung |
+| Location | Fundort Label |
+| Region | Naturraum |
+| Notes | Bemerkung_zur_Pflanze |
 
-```bash
-python app.py
-```
+`valid_json` measures whether the response is a JSON object with exactly these
+keys and string values. Fences, missing/extra keys, duplicate keys, non-string
+values, and invalid JSON fail format validation. Invalid responses score zero
+on every field that has a nonblank reference.
 
-Access the application at `http://localhost:7860`
+Each field reports the mean exact-match score across its nonblank references.
+Normalization is limited to Unicode NFC, case, whitespace, the hybrid `×`/`x`
+symbol, and German month-name dates converted to ISO. Full species names,
+collector names, locality details, and dates are compared. Author abbreviations
+are retained; synonyms and paraphrases are not equated. Partial dates retain
+their precision (`YYYY` or `YYYY-MM`); a full date does not equal a year-only
+reference. No translation is requested.
 
-### Processing Pipeline
+**Blank reference fields are unknown and excluded from that field's accuracy.**
+Inspect records their unscored counts. Predictions for those fields stay in logs
+for manual review. They are neither credited as correct nor labelled hallucinations.
+This strict baseline can penalize legitimate alternate wording, synonyms, and
+information absent from the physical label but added to the reference catalogue.
 
-1. (Optional) Grounding DINO finds bounding boxes likely to contain label text.
-2. Bounding boxes are cropped and passed (as images) plus the human prompt to the selected LLVM.
-3. The LLVM returns structured text (line-wise key:value). The code parses these into columns.
-4. Results are saved as CSV/JSON for downstream use or evaluation.
+## Migration
 
-## Data Format
+This replaces the previous Hydra runner, Gradio application, custom model
+adapters, DINO preprocessing, multi-specimen prompts, CSV parser, and evaluator
+with one Inspect task and one scorer. The regression plots, embedding metrics,
+Slurm launchers, and heavyweight ML dependencies have been removed. Original
+image lists, existing output files, and Git history remain available.
 
-The extracted data is saved in CSV format with the following fields:
-- Species Name: Scientific name including genus and species
-- Collection Date: Date when the specimen was collected
-- Location: Geographic location of collection
-- Collector's Name: Name of the person who collected the specimen
-- Country/State: Name of the state or country the specimen was collected
-- Region: The general natural region where the specimen was found
-- Notes: Additional notes found on the image or label
+Old commands (`extract_data.py`, `app.py`, and `evaluate.py`) no longer apply.
+Old runs are available in `outputs/`; the previous implementation is preserved in
+commit `611d435`. New scores are not directly comparable with old scores: the old
+evaluator compared only the first two species-name words, date year, and final
+collector-name word. The prompt, response format, and scoring policy also changed.
 
-## License
+The maintained code is `herbarium.py`, `scoring.py`, and `prompt.txt`. Optional
+future analysis or CSV export can use Inspect's [log API](https://inspect.aisi.org.uk/eval-logs.html).
 
-MIT License — see LICENSE file for details.
-
-## Direct OpenAI
-
-Set `OPENAI_API_KEY=your-openai-api-key` in the project-root `.env`, replacing
-the placeholder locally, or export `OPENAI_API_KEY` in your shell. Exported
-values take precedence. Do not put keys in Hydra overrides or `config.yaml`,
-because Hydra saves these with experiment outputs. No OpenRouter key is needed.
-
-Select `llm.model_name=gpt-4.1` (or `gpt-4.1-mini`) for direct OpenAI. GPT model
-names are sent unchanged through the Responses API; choose a model that accepts
-images and supports Responses. See the official [vision guide](https://developers.openai.com/api/docs/guides/images-vision)
-and [GPT-4.1 model documentation](https://developers.openai.com/api/docs/models/gpt-4.1).
-`openrouter:openai/gpt-4.1` instead selects OpenRouter and uses its separate key.
-Direct OpenAI defaults to `https://api.openai.com/v1`, ignoring `OPENAI_BASE_URL`
-to avoid accidental routing through another provider. Explicit SDK `base_url`
-options remain available for compatible endpoints such as vLLM.
-
-From the repository root, with your key configured:
-
-```bash
-python extract_data.py \
-  dataset_path=/Users/liann/Downloads/GLM_scans_mini \
-  image_list=data/handwritten.txt image_index=0 n_images=1 \
-  batch_size=1 img_max_size=2048 \
-  preprocessors.grounding_dino.enabled=false \
-  llm.model_name=gpt-4.1
-```
-
-This reads the first listed image from the dataset's `handwritten` subfolder
-and writes the usual `extracted_data.csv` in Hydra's output directory. The
-existing evaluator and CSV schema are unchanged. Actual extraction incurs API
-charges and requires account access to the selected model.
-
-For either web tab, start the server with:
-
-```bash
-python app.py llm.model_name=gpt-4.1 preprocessors.grounding_dino.enabled=false
-```
-
-Choose `gpt-4.1` or `gpt-4.1-mini` in **LLM Model**, or enter another compatible
-`gpt...` model ID. Credentials are loaded on the server. The lightweight Python
-dependencies listed below for OpenRouter also support direct OpenAI.
-Responses options go under `llm.gen_opts` (for example,
-`+llm.gen_opts.max_output_tokens=2048`); nested options are preserved. Temperature
-is omitted when null in the CLI; the web slider supplies a numeric temperature,
-so choose a model supporting that parameter. Streaming and background responses
-are unsupported; empty text responses produce a clear error.
-
-## OpenRouter
-
-Use `llm.model_name=openrouter:<provider>/<model>`, for example
-`openrouter:google/gemini-2.5-pro`. Only the `openrouter:` prefix is removed;
-`google/gemini-2.5-pro` is sent to OpenRouter unchanged. Existing model names
-continue to select their original providers. Choose a model that supports image input.
-
-Set `OPENROUTER_API_KEY` in the project-root `.env` (see `.env.example`) or export
-it in your shell. No Google or OpenAI API key is needed for this route. Keep keys
-out of Hydra overrides/config files, which are saved with experiment outputs.
-The adapter never falls back to `OPENAI_API_KEY` or `OPENAI_BASE_URL`.
-
-For a lightweight API-only environment (Python 3.10+), with label detection disabled:
-
-```bash
-python -m venv venv
-source venv/bin/activate
-pip install openai==2.7.1 hydra-core==1.3.2 pandas==2.3.3 Pillow python-dotenv==1.2.1
-# Also install gradio==5.49.1 if using the web interface.
-```
-
-The full `requirements.txt` remains available for other providers, detection, and
-evaluation dependencies. OpenRouter reuses the existing OpenAI SDK dependency.
-
-From the repository root, run the 100-image handwritten baseline:
-
-```bash
-cd /Users/liann/workspace/herbarium_label_reader
-python extract_data.py \
-  dataset_path=/Users/liann/Downloads/GLM_scans_mini \
-  image_list=data/handwritten.txt image_index=0 n_images=100 \
-  batch_size=1 img_max_size=2048 \
-  preprocessors.grounding_dino.enabled=false \
-  llm.model_name=openrouter:google/gemini-2.5-pro
-```
-
-This uses the first 100 filenames in `data/handwritten.txt`, resolved under the
-`handwritten` subfolder. It writes the usual `extracted_data.csv` in the Hydra
-output directory. Evaluate with the existing evaluator and
-`/Users/liann/Downloads/GLM_scans_mini/handwritten/label_data.csv` as ground truth.
-This runs inference and incurs OpenRouter charges. It reproduces the requested
-settings; matching published scores is not guaranteed across model versions or
-OpenRouter's upstream provider routing. Record the resolved model/provider used
-for benchmark comparisons.
-
-Launch the web app with the same route:
-
-```bash
-python app.py llm.model_name=openrouter:google/gemini-2.5-pro preprocessors.grounding_dino.enabled=false
-```
-
-Both tabs offer OpenRouter models and accept custom `openrouter:<provider>/<model>`
-values. Credentials stay on the server. The web pipeline preserves `llm.init_opts`,
-`llm.template_opts`, and `llm.gen_opts` from configuration. Optional OpenRouter
-parameters (such as provider routing) can be passed under `llm.gen_opts.extra_body`.
-Temperature is omitted from API requests when null; existing retry and CSV parsing
-behavior is retained. Streaming is not supported by the extraction pipeline.
-
-Implementation references: [official SDK quickstart](https://openrouter.ai/docs/quickstart)
-and [image-input format](https://openrouter.ai/docs/guides/overview/multimodal/image-understanding).
-Requests use `https://openrouter.ai/api/v1/chat/completions` with local images encoded
-as JPEG data URLs.
-
-Offline tests (no inference calls):
+## Offline tests
 
 ```bash
 python -m unittest discover -s tests -v
 ```
+
+Tests exercise image preparation, reference joins, strict JSON parsing,
+normalization, blank-reference handling, provider credential separation, and a
+complete Inspect evaluation with mock responses and saved usage. No paid model
+calls are made.
+
+## License
+
+The software remains under the **MIT License**; see [LICENSE](LICENSE). The
+upstream notice, **Copyright (c) 2025 Atlas**, and the complete permission and
+warranty terms are retained unchanged. Include that notice and license when
+redistributing copies or substantial portions of the software. Citation is
+requested for scientific credit, not added as a new restriction on the MIT license.
+
+The GLM scans and associated reference data are separately licensed **CC BY-SA
+4.0**, as recorded in the [Zenodo metadata](https://zenodo.org/api/records/17714208).
+They are not relicensed under MIT. When sharing these materials, retain source
+and creator attribution, link the [CC BY-SA 4.0 license](https://creativecommons.org/licenses/by-sa/4.0/),
+and identify changes. Shared adaptations must use CC BY-SA 4.0 or a compatible
+license. This includes resized specimen images embedded in shared Inspect logs;
+the task applies EXIF orientation, whole-image resizing, and JPEG conversion.
+The dataset itself is downloaded separately, and evaluation logs are Git-ignored.
+
+The dataset documentation notes that date and name entries were not corrected
+back to literal label text. Account for this when interpreting exact-match
+scores or publishing claims about transcription errors.
+
+Inspect and other installed dependencies retain their own licenses. This
+repository references them as dependencies rather than vendoring their source;
+retain their applicable notices if distributing an environment or application
+bundle containing them.
