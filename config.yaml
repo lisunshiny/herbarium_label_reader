@@ -13,6 +13,7 @@ llm:
   template_opts: {}
   gen_opts: {}
   # OpenRouter: "openrouter:google/gemini-2.5-pro" with OPENROUTER_API_KEY
+  # Direct OpenAI: "gpt-4.1" with OPENAI_API_KEY (vision via Responses API)
   model_name: "gemini-2.5-pro"
   prompt: "
     You are an expert in identifying and extracting information from herbarium labels.

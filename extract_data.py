@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import math
 import hydra
 import hashlib
@@ -42,7 +43,7 @@ OmegaConf.register_new_resolver("shorthash", lambda s: hashlib.md5(s.encode()).h
 @hydra.main(version_base=None, config_path=".", config_name="config")
 def main(cfg: DictConfig):
     # Load environment variables
-    load_dotenv()
+    load_dotenv(Path(__file__).resolve().parent / ".env", override=False)
 
     output_dir = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
 

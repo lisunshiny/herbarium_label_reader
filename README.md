@@ -40,7 +40,7 @@ pip install -r requirements.txt
 ```
 
 3. Configure API keys and provider credentials:
-Create a `.env` file at the project root. The application and scripts call load_dotenv(), and the following environment variables are commonly required depending on which providers you use:
+Create a `.env` file at the project root (see `.env.example`). Both entry points load this exact file without overriding exported environment variables. Set only the credentials for the providers you use:
 ```
 # For OpenAI models
 OPENAI_API_KEY=...
@@ -139,6 +139,53 @@ The extracted data is saved in CSV format with the following fields:
 ## License
 
 MIT License — see LICENSE file for details.
+
+## Direct OpenAI
+
+Set `OPENAI_API_KEY=your-openai-api-key` in the project-root `.env`, replacing
+the placeholder locally, or export `OPENAI_API_KEY` in your shell. Exported
+values take precedence. Do not put keys in Hydra overrides or `config.yaml`,
+because Hydra saves these with experiment outputs. No OpenRouter key is needed.
+
+Select `llm.model_name=gpt-4.1` (or `gpt-4.1-mini`) for direct OpenAI. GPT model
+names are sent unchanged through the Responses API; choose a model that accepts
+images and supports Responses. See the official [vision guide](https://developers.openai.com/api/docs/guides/images-vision)
+and [GPT-4.1 model documentation](https://developers.openai.com/api/docs/models/gpt-4.1).
+`openrouter:openai/gpt-4.1` instead selects OpenRouter and uses its separate key.
+Direct OpenAI defaults to `https://api.openai.com/v1`, ignoring `OPENAI_BASE_URL`
+to avoid accidental routing through another provider. Explicit SDK `base_url`
+options remain available for compatible endpoints such as vLLM.
+
+From the repository root, with your key configured:
+
+```bash
+python extract_data.py \
+  dataset_path=/Users/liann/Downloads/GLM_scans_mini \
+  image_list=data/handwritten.txt image_index=0 n_images=1 \
+  batch_size=1 img_max_size=2048 \
+  preprocessors.grounding_dino.enabled=false \
+  llm.model_name=gpt-4.1
+```
+
+This reads the first listed image from the dataset's `handwritten` subfolder
+and writes the usual `extracted_data.csv` in Hydra's output directory. The
+existing evaluator and CSV schema are unchanged. Actual extraction incurs API
+charges and requires account access to the selected model.
+
+For either web tab, start the server with:
+
+```bash
+python app.py llm.model_name=gpt-4.1 preprocessors.grounding_dino.enabled=false
+```
+
+Choose `gpt-4.1` or `gpt-4.1-mini` in **LLM Model**, or enter another compatible
+`gpt...` model ID. Credentials are loaded on the server. The lightweight Python
+dependencies listed below for OpenRouter also support direct OpenAI.
+Responses options go under `llm.gen_opts` (for example,
+`+llm.gen_opts.max_output_tokens=2048`); nested options are preserved. Temperature
+is omitted when null in the CLI; the web slider supplies a numeric temperature,
+so choose a model supporting that parameter. Streaming and background responses
+are unsupported; empty text responses produce a clear error.
 
 ## OpenRouter
 

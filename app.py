@@ -1,16 +1,18 @@
 import os
+from pathlib import Path
 import gradio as gr
 import hydra
 from PIL import Image
 from dotenv import load_dotenv
 from webapp.process_request import process_image, process_batch
 
-load_dotenv()
 Image.MAX_IMAGE_PIXELS = None
 
 @hydra.main(version_base=None, config_path=".", config_name="config")
 def main(cfg):
-    with open("webapp_supported_models.txt", "r") as f:
+    project_root = Path(__file__).resolve().parent
+    load_dotenv(project_root / ".env", override=False)
+    with open(project_root / "webapp_supported_models.txt", "r") as f:
         llm_choices = f.read().strip().splitlines()
 
     def get_common_inputs():
@@ -20,7 +22,7 @@ def main(cfg):
             gr.Slider(label="Box Threshold", minimum=0.0, maximum=1.0, value=cfg.preprocessors.grounding_dino.box_threshold, step=0.01),
             gr.Slider(label="Text Threshold", minimum=0.0, maximum=1.0, value=cfg.preprocessors.grounding_dino.text_threshold, step=0.01),
             gr.Textbox(label="Label Detection Prompt", value=cfg.preprocessors.grounding_dino.prompt, lines=7),
-            gr.Dropdown(label="LLM Model", choices=llm_choices, value=cfg.llm.model_name, allow_custom_value=True, info="For OpenRouter use openrouter:<provider>/<model>; set OPENROUTER_API_KEY on the server."),
+            gr.Dropdown(label="LLM Model", choices=llm_choices, value=cfg.llm.model_name, allow_custom_value=True, info="Direct OpenAI: gpt-4.1 with OPENAI_API_KEY. OpenRouter: openrouter:<provider>/<model> with OPENROUTER_API_KEY. Set keys on the server."),
             gr.Slider(label="Resize Size (px)", minimum=512, maximum=4096, value=4096, step=64, info="If the image is larger than this, the longer side will be resized to fit the specified resolution, keeping the aspect ratio. Higher resolutions typically generate better results, but can increase traffic and cost."),
             gr.Slider(label="Temperature", minimum=0.0, maximum=2.0, value=getattr(cfg.llm, "temperature", 0.7), step=0.01, info="Determines the determinism of the LLVM, where higher values mean that the model is more \"creative\" (values up to 2.0), while lower values result in the model being more deterministic and reproducible (down to 0)."),
         ]
