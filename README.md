@@ -143,9 +143,13 @@ CSV output or billing estimator.
 
 Cost is recorded automatically with the `openrouter-cost/` provider. OpenRouter
 returns [`usage.cost`](https://openrouter.ai/docs/cookbook/administration/usage-accounting),
-the amount charged to your account in credits, in each response. The adapter copies
-that value directly into Inspect's `total_cost`: each sample's `output.usage` and
-`model_usage`, and the run's `stats.model_usage`. No pricing file, token-based
+the amount charged to your OpenRouter account, in each response. For regular
+OpenRouter calls this becomes `total_cost`. For BYOK calls (`is_byok: true`),
+`total_cost` is OpenRouter's charge plus the separately returned
+`cost_details.upstream_inference_cost`. The upstream amount is never added for
+regular routing, where that would double-count costs. Inspect saves totals in each
+sample's `output.usage` and `model_usage`, and the run's `stats.model_usage`.
+Both components are preserved in `output.metadata.openrouter_billing`. No pricing file, token-based
 calculation, or extra API request is needed. The raw response retains the billing
 details, including any separate upstream inference cost.
 
@@ -157,7 +161,7 @@ version; the `openrouter-cost/` prefix enables this adapter.
 A returned zero is recorded as zero. Missing or invalid costs remain unknown and
 produce a warning; aggregated totals may then be incomplete. These logs account
 for returned successful generations, not an account-wide bill or credit-purchase
-fees. Existing logs are not backfilled. Inspect's live cost-limit enforcement in
+fees. Missing BYOK billing components remain unknown rather than being treated as zero. Inspect's live cost-limit enforcement in
 this version relies on configured prices, so do not rely on `--cost-limit` with
 this adapter; set spending limits in OpenRouter instead.
 

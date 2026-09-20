@@ -10,20 +10,41 @@ from inspect_ai.model import ModelOutput, modelapi
 from inspect_ai.model._providers.openrouter import OpenRouterAPI
 
 
+def cost_breakdown(usage):
+    """Keep router billing separate; BYOK incurs a separate upstream charge."""
+    def amount(value):
+        return float(value) if type(value) in (int, float) and math.isfinite(value) and value >= 0 else None
+
+    usage = usage if isinstance(usage, dict) else {}
+    details = usage.get("cost_details")
+    details = details if isinstance(details, dict) else {}
+    router = amount(usage.get("cost"))
+    upstream = amount(details.get("upstream_inference_cost"))
+    byok = usage.get("is_byok") is True
+    total = (router + upstream if router is not None and upstream is not None else None) if byok else router
+    return {"version": 2, "is_byok": byok, "openrouter_cost": router,
+            "upstream_inference_cost": upstream, "total_cost": total}
+
+
+def apply_cost(output, response):
+    usage = response.get("usage") if isinstance(response, dict) else None
+    breakdown = cost_breakdown(usage)
+    output.metadata = {**(output.metadata or {}), "openrouter_billing": breakdown}
+    if output.usage is not None:
+        output.usage.total_cost = breakdown["total_cost"]
+    if breakdown["total_cost"] is None:
+        logging.getLogger(__name__).warning(
+            "OpenRouter billing is incomplete; total cost is unknown. See openrouter_billing metadata."
+        )
+    return breakdown
+
+
 @modelapi(name="openrouter-cost")
 class OpenRouterCostAPI(OpenRouterAPI):
     async def generate(self, input, tools, tool_choice, config):
         result = await super().generate(input, tools, tool_choice, config)
         if isinstance(result, tuple):
             output, call = result
-            if isinstance(output, ModelOutput) and output.usage is not None:
-                response = call.response if call is not None else None
-                usage = response.get("usage") if isinstance(response, dict) else None
-                cost = usage.get("cost") if isinstance(usage, dict) else None
-                if type(cost) in (int, float) and math.isfinite(cost) and cost >= 0:
-                    output.usage.total_cost = float(cost)
-                else:
-                    logging.getLogger(__name__).warning(
-                        "OpenRouter did not return a valid usage.cost; recorded cost totals may be incomplete."
-                    )
+            if isinstance(output, ModelOutput):
+                apply_cost(output, call.response if call is not None else None)
         return result

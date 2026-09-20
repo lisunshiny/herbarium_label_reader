@@ -171,8 +171,8 @@ class DatasetTests(unittest.TestCase):
                 'choices': [{'index': 0, 'finish_reason': 'stop',
                              'message': {'role': 'assistant', 'content': json.dumps(self.reference)}}],
                 'usage': {'prompt_tokens': 100, 'completion_tokens': 20,
-                          'total_tokens': 120, 'cost': next(charges),
-                          'cost_details': {'upstream_inference_cost': 99.0}},
+                          'total_tokens': 120, 'cost': 0, 'is_byok': True,
+                          'cost_details': {'upstream_inference_cost': next(charges)}},
             })
 
         client = httpx2.AsyncClient(transport=httpx2.MockTransport(respond))
@@ -191,8 +191,12 @@ class DatasetTests(unittest.TestCase):
             self.assertEqual(log.status, 'success', str(log.error))
             self.assertEqual(next(iter(log.stats.model_usage.values())).total_cost, 0.0123)
             self.assertCountEqual([sample.output.usage.total_cost for sample in log.samples], [0.0123, 0.0])
+            for sample in log.samples:
+                billing = sample.output.metadata['openrouter_billing']
+                self.assertEqual(billing['openrouter_cost'], 0)
+                self.assertEqual(billing['upstream_inference_cost'], sample.output.usage.total_cost)
             self.assertCountEqual([next(iter(sample.model_usage.values())).total_cost
-                              for sample in log.samples], [0.0123, 0.0])
+                                   for sample in log.samples], [0.0123, 0.0])
         finally:
             asyncio.run(client.aclose())
 
