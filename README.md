@@ -42,13 +42,47 @@ agents, tools, or model-based grading.
 
 ## Setup
 
-Python 3.11 or newer:
+Use **Python 3.14.7**, pinned in `.python-version`, and
+[uv](https://docs.astral.sh/uv/getting-started/installation/) to install the
+locked environment. `pyproject.toml` declares the supported Python 3.14 series
+and direct dependencies; `uv.lock` pins their transitive dependencies and hashes.
+Run these commands from the repository root:
 
 ```bash
-python -m venv .venv
+uv sync --locked
 source .venv/bin/activate
-pip install -r requirements.txt
+python --version  # Python 3.14.7
 ```
+
+`uv sync --locked` downloads the pinned Python if needed, creates or updates
+`.venv`, installs this project and its Inspect extension, and removes packages
+outside the lockfile. This replaces an older Python 3.11 environment and removes
+leftover Gradio/Hydra packages. If your shell was already activated, run
+`deactivate` before syncing and activate `.venv` again afterward.
+
+Use a current uv release (this setup was resolved with uv 0.12.17). If an older
+uv reports that Python 3.14.7 cannot be downloaded, update uv using the same
+method you installed it with (`uv self update` for the standalone installer).
+Alternatively, use `uv tool run --from uv==0.12.17 uv sync --locked` without
+replacing your installed uv.
+
+After pulling repository updates, rerun `uv sync --locked`. You can also run
+commands without activation, for example `uv run --locked inspect view`.
+`requirements.txt` remains an editable pip-install compatibility entry point,
+but it does not enforce `uv.lock`; use uv for reproducible runs.
+
+To intentionally update dependencies, edit the relevant pins in `pyproject.toml`,
+then run:
+
+```bash
+uv lock
+uv sync --locked
+uv run --locked python -m unittest discover -s tests -v
+```
+
+Use `uv lock --upgrade` only when you intend to refresh transitive dependencies
+as well. Commit `pyproject.toml`, `.python-version`, and `uv.lock` changes together
+as applicable. Keep `.venv` untracked.
 
 Run commands from the repository root. Set `OPENROUTER_API_KEY` in your shell or in
 `.env` (see `.env.example`). Inspect loads `.env`; exported values take precedence.
@@ -90,7 +124,7 @@ messages; sample IDs and reference answers remain in the evaluation logs.
 All inference goes through OpenRouter. Use `openrouter-cost/<OpenRouter model ID>`,
 for example `openrouter-cost/google/gemini-2.5-pro`. The small adapter in
 [openrouter_cost.py](openrouter_cost.py) extends Inspect's OpenRouter provider to
-preserve the charge returned by the API. `pip install -r requirements.txt` registers
+preserve the charge returned by the API. `uv sync --locked` registers
 this extension with Inspect (rerun it when updating an existing checkout). It uses `OPENROUTER_API_KEY` and supports
 Inspect's OpenRouter options, including `OPENROUTER_BASE_URL`.
 Model availability and reasoning settings depend on the selected model.
@@ -178,7 +212,7 @@ future analysis or CSV export can use Inspect's [log API](https://inspect.aisi.o
 ## Offline tests
 
 ```bash
-python -m unittest discover -s tests -v
+uv run --locked python -m unittest discover -s tests -v
 ```
 
 Tests exercise image preparation, reference joins, strict JSON parsing,
