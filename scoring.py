@@ -3,6 +3,7 @@ import json
 import re
 import unicodedata
 from datetime import date
+from functools import lru_cache
 
 from inspect_ai.scorer import Score, Target, mean, scorer
 
@@ -23,7 +24,7 @@ MONTHS = {name: i for i, name in enumerate(
     ["januar", "februar", "märz", "april", "mai", "juni", "juli", "august",
      "september", "oktober", "november", "dezember"], 1)}
 STATUSES = {"present", "absent", "unknown", "unreadable", "uncertain"}
-SCORING_VERSION = 3
+SCORING_VERSION = 5
 METRICS = ["valid_json", *OUTPUT_FIELDS, "field_accuracy", "specimen_exact",
            "date_year", "date_month", "date_day", "omitted_facts", "unsupported_additions",
            "Location_precision", "Location_recall", "Notes_precision", "Notes_recall"]
@@ -253,6 +254,81 @@ def accepted(field, annotation):
     return {normalize(field, value) for value in [annotation["value"], *annotation.get("alternatives", [])]}
 
 
+# Optional descriptive context, never a wildcard for arbitrary place names.
+LOCATION_CONTEXT = frozenset("feld wald wegrand waldwegrand wiese hangwiese trockenhang ödland odland ruderal sand geschiebelehm lehm ton kies feuchter feuchte feuchten trockene trockener trocken sandiger sandige feuchtsandiger acker erlenbruch mehrfach zahlreich".split())
+
+
+def location_without_metadata(value):
+    # MTB sheet/quadrant notation; do not remove arbitrary numbers or distances.
+    value = re.sub(r"(?<!\w)(?:MTB\s*)?\d{2}\s?\d{2}/[1-4]{1,3}(?!\d)", " ", value, flags=re.I)
+    value = re.sub(r"(?<!\w)\d+(?:[.,]\d+)?\s*m\s*(?:ü\.?\s*(?:NN|NHN)|a\.?\s*s\.?\s*l\.?)(?!\w)", " ", value, flags=re.I)
+    return value.strip(" ,;:")
+
+
+def match_facts(field, predictions, facts, *, tolerate_context=False):
+    """Match whole ordered phrases across item/delimiter boundaries.
+
+    A clause must be fully explained by matched facts or remain unmatched. This
+    prevents credit for 'flowering' inside 'not flowering'. Each reference fact
+    may be used once; duplicates and unconsumed clauses remain additions.
+    """
+    if tolerate_context:
+        predictions = [clean for value in predictions if (clean := location_without_metadata(value))]
+        facts = [{**fact, 'value': location_without_metadata(fact['value']),
+                  'alternatives': [location_without_metadata(v) for v in fact.get('alternatives', [])]} for fact in facts]
+    atoms = []
+    for prediction in predictions:
+        start = len(atoms)
+        # Preserve separators inside numbers (decimal commas, grid references).
+        for part in re.split(r"[;:\n]|(?<!\d)[,/]|[,/](?!\d)", prediction):
+            tokens = normalize(field, part).split()
+            if tokens:
+                atoms.append(tuple(tokens))
+        if len(atoms) == start:
+            # Nonempty punctuation-only output is not a correct empty answer.
+            atoms.append((prediction.strip(),))
+    stream = tuple(token for atom in atoms for token in atom)
+    boundaries = {0}
+    for atom in atoms:
+        boundaries.add(max(boundaries) + len(atom))
+    edges = sorted(boundaries)
+    next_boundary = dict(zip(edges, edges[1:]))
+    variants = [sorted({tuple(form.split()) for form in accepted(field, fact)}) for fact in facts]
+
+    @lru_cache(maxsize=None)
+    def solve(position, used):
+        if position == len(stream):
+            return (0, 0, (), ())  # matched facts, matched tokens, indices, unmatched clauses
+        best = None
+        if position in next_boundary:
+            end = next_boundary[position]
+            rest = solve(end, used)
+            if rest is not None:
+                best = (rest[0], rest[1], rest[2], (" ".join(stream[position:end]), *rest[3]))
+        if tolerate_context and stream[position] in LOCATION_CONTEXT:
+            rest = solve(position + 1, used)
+            if rest is not None and (best is None or (rest[0], rest[1], -len(rest[3])) > (best[0], best[1], -len(best[3]))):
+                best = rest
+        for index, forms in enumerate(variants):
+            if used & (1 << index):
+                continue
+            for form in forms:
+                end = position + len(form)
+                if stream[position:end] != form:
+                    continue
+                rest = solve(end, used | (1 << index))
+                if rest is None:
+                    continue
+                candidate = (rest[0] + 1, rest[1] + len(form), (index, *rest[2]), rest[3])
+                if best is None or candidate[:2] > best[:2]:
+                    best = candidate
+        return best
+
+    result = solve(0, 0)
+    matched = set(result[2])
+    return [i for i in range(len(facts)) if i not in matched], list(result[3])
+
+
 def grade(answer, valid, reference):
     values = {metric: float("nan") for metric in METRICS}
     values["valid_json"] = int(valid)
@@ -267,19 +343,12 @@ def grade(answer, valid, reference):
         prediction = answer.get(field, [] if field in FACT_FIELDS else "")
         if field in FACT_FIELDS:
             facts = item.get("facts", [])
-            remaining = list(range(len(facts)))
-            extra = []
-            for fact in prediction:
-                hit = next((i for i in remaining if normalize(field, fact) in accepted(field, facts[i])), None)
-                if hit is None:
-                    extra.append(fact)
-                else:
-                    remaining.remove(hit)
+            remaining, extra = match_facts(field, prediction, facts, tolerate_context=field == "Location")
             matched = len(facts) - len(remaining)
             complete = item.get("complete", True)
             values[field] = int(usable and not remaining and not extra) if complete else float("nan")
             values[field + "_recall"] = matched / len(facts) if facts else float("nan")
-            values[field + "_precision"] = matched / len(prediction) if prediction and complete else float("nan")
+            values[field + "_precision"] = matched / (matched + len(extra)) if (matched or extra) and complete else float("nan")
             missing = [facts[i]["value"] for i in remaining]
         else:
             correct = (not prediction.strip() if status == "absent"
@@ -330,7 +399,7 @@ def label_fields():
         answer, valid = parse_fields(state.output.completion)
         values, details = grade(answer, valid, reference)
         return Score(value=values, answer=state.output.completion,
-                     explanation="Field-specific grading v3; schema compliance is scored separately. See metadata for omissions and additions.",
+                     explanation="Field-specific grading v5; schema compliance is scored separately. See metadata for omissions and additions.",
                      metadata={"scoring_version": SCORING_VERSION, "fields": details,
                                "unscored_fields": [f for f in OUTPUT_FIELDS if reference[f]["status"] not in {"present", "absent"} or not reference[f].get("complete", True)]})
     return score

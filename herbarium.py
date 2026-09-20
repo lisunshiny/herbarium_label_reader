@@ -7,6 +7,7 @@ from pathlib import Path
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import MemoryDataset, Sample
+from inspect_ai.log import HeadlineMetric
 from inspect_ai.model import ChatMessageUser, ContentImage, ContentText
 from inspect_ai.solver import generate
 from PIL import Image, ImageOps
@@ -104,5 +105,8 @@ def herbarium(
         dataset=load_dataset(dataset_path, image_list, max_size, golden_file),
         solver=generate(),
         scorer=label_fields(),
+        display_name=f"Herbarium — {Path(image_list).stem}",
+        tags=[Path(image_list).stem],
+        headline_metric=HeadlineMetric(scorer="label_fields", score="field_accuracy", metric="mean"),
         version=3,
     )

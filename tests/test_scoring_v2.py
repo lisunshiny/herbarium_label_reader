@@ -19,6 +19,39 @@ def unknown_reference():
 
 
 class GradingRulesTests(unittest.TestCase):
+    def test_fact_matches_ignore_split_or_merged_list_boundaries(self):
+        reference = unknown_reference()
+        reference['Location'] = {'status': 'present', 'facts': [
+            {'value': 'Görlitz'}, {'value': 'Weinlache'}]}
+        for prediction in [['Görlitz: Weinlache.'], ['Görlitz Weinlache'], ['Weinlache', 'Görlitz']]:
+            values, _ = grade({'Location': prediction}, False, reference)
+            self.assertEqual(values['Location'], 1)
+            self.assertEqual(values['Location_precision'], 1)
+            self.assertEqual(values['Location_recall'], 1)
+        reference['Location']['facts'] = [{'value': 'Görlitz: Weinlache'}]
+        values, _ = grade({'Location': ['Görlitz', 'Weinlache']}, False, reference)
+        self.assertEqual(values['Location'], 1)
+
+    def test_merged_notes_keep_extra_and_duplicate_claims(self):
+        reference = unknown_reference()
+        reference['Notes'] = {'status': 'present', 'facts': [{'value': 'flowering'}, {'value': 'altitude 200 m'}]}
+        values, detail = grade({'Notes': ['flowering; altitude 200 m; flowering; near river']}, False, reference)
+        self.assertEqual(values['Notes_recall'], 1)
+        self.assertEqual(values['Notes_precision'], .5)
+        self.assertEqual(values['unsupported_additions'], 2)
+        for prediction in [['not flowering', 'altitude 300 m'], ['flowering not', 'altitude -200 m']]:
+            values, _ = grade({'Notes': prediction}, False, reference)
+            self.assertEqual(values['Notes_recall'], 0)
+
+    def test_matching_does_not_reuse_overlapping_tokens_and_chooses_best_cover(self):
+        reference = unknown_reference()
+        reference['Location'] = {'status': 'present', 'facts': [
+            {'value': 'New York', 'alternatives': ['NY']}, {'value': 'York'}]}
+        values, _ = grade({'Location': ['New York']}, False, reference)
+        self.assertEqual(values['Location_recall'], .5)
+        values, _ = grade({'Location': ['NY York']}, False, reference)
+        self.assertEqual(values['Location'], 1)
+
     def test_species_parser_handles_authorities_ranks_and_hybrids(self):
         cases = {
             'Dryopteris filix-mas (L.) Schott': ('Dryopteris filix-mas', '(L.) Schott'),
@@ -65,7 +98,7 @@ class GradingRulesTests(unittest.TestCase):
         self.assertTrue(math.isnan(values['Notes']))
         self.assertTrue(math.isnan(values['Notes_precision']))
         self.assertEqual(values['unsupported_additions'], 0)
-        self.assertEqual(details['Notes']['unverified'], ['Acc. Nr. 93'])
+        self.assertEqual(details['Notes']['unverified'], ['acc nr 93'])
         reference['Notes'].update(source='golden', complete=True)
         values, _ = grade({'Notes': ['Neu für die Lausitz', 'Acc. Nr. 93']}, False, reference)
         self.assertEqual(values['Notes'], 0)
@@ -193,7 +226,7 @@ class GradingRulesTests(unittest.TestCase):
         target = Target(json.dumps({'schema_version': 2, 'fields': reference}))
         state = SimpleNamespace(output=SimpleNamespace(completion=json.dumps({'Country': 'Germany'})))
         result = asyncio.run(label_fields()(state, target))
-        self.assertEqual(result.metadata['scoring_version'], 3)
+        self.assertEqual(result.metadata['scoring_version'], 5)
         self.assertEqual(result.metadata['fields']['Country']['unsupported'], ['Germany'])
         self.assertIn('Notes', result.metadata['unscored_fields'])
 
@@ -202,6 +235,30 @@ class GradingRulesTests(unittest.TestCase):
         self.assertEqual(data['schema_version'], 2)
         for fields in data['samples'].values():
             validate_reference(fields)
+
+
+class LocationExtrasTests(unittest.TestCase):
+    def score_location(self, prediction):
+        ref = unknown_reference()
+        ref['Location'] = {'status': 'present', 'facts': [{'value': 'Bautzen'}, {'value': 'Johnsdorf'}]}
+        return grade({'Location': prediction}, True, ref)[0]['Location']
+
+    def test_benign_extras(self):
+        self.assertEqual(self.score_location(['MTB 48 52/33 Bautzen', 'Johnsdorf', 'Feld', 'Geschiebelehm, Sand', '147 m ü. NN']), 1)
+
+    def test_wrong_or_missing_places_still_fail(self):
+        for prediction in [['Bautzen', 'Jehnsdorf', 'Sand'], ['Bautzen', 'Sand'], ['Bautzen', 'Johnsdorf', 'Dresden'], ['nicht Bautzen', 'Johnsdorf']]:
+            self.assertEqual(self.score_location(prediction), 0)
+
+    def test_context_inside_clause(self):
+        ref = unknown_reference()
+        ref['Location'] = {'status': 'present', 'facts': [{'value': 'bei einer ehemaligen Glassandgrube'}]}
+        self.assertEqual(grade({'Location': ['Ödland bei einer ehemaligen Glassandgrube']}, True, ref)[0]['Location'], 1)
+
+    def test_required_habitat_not_omitted(self):
+        ref = unknown_reference()
+        ref['Location'] = {'status': 'present', 'facts': [{'value': 'Bautzen'}, {'value': 'Wald'}]}
+        self.assertEqual(grade({'Location': ['Bautzen']}, True, ref)[0]['Location'], 0)
 
 
 if __name__ == '__main__':
