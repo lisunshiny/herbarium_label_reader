@@ -1,3 +1,1 @@
-inspect-ai==0.3.266
-openai==3.16.2
-Pillow==11.3.0
+-e .

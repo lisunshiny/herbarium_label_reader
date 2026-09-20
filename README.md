@@ -50,9 +50,9 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Run commands from the repository root. Set `OPENAI_API_KEY` in your shell or in
+Run commands from the repository root. Set `OPENROUTER_API_KEY` in your shell or in
 `.env` (see `.env.example`). Inspect loads `.env`; exported values take precedence.
-OpenRouter uses its separate `OPENROUTER_API_KEY`. Keep real credentials out of
+Keep real credentials out of
 tracked files and command-line model arguments.
 
 ## Run
@@ -62,10 +62,8 @@ With the local GLM dataset:
 ```bash
 inspect eval herbarium.py \
   -T dataset_path=/Users/liann/Downloads/GLM_scans_mini \
-  --model openai/gpt-5.6-luna \
-  -M responses_api=true \
+  --model openrouter-cost/openai/gpt-5.6-luna \
   --reasoning-effort medium \
-  --model-cost-config pricing.yaml \
   --limit 1
 ```
 
@@ -89,18 +87,13 @@ loading a large list takes time even for a one-sample run. No resized files are
 saved. Filenames, EXIF metadata, and ground-truth text are not included in model
 messages; sample IDs and reference answers remain in the evaluation logs.
 
-For OpenRouter, use Inspect's provider syntax (slashes, not the old colon prefix):
-
-```bash
-inspect eval herbarium.py \
-  -T dataset_path=/Users/liann/Downloads/GLM_scans_mini \
-  --model openrouter/google/gemini-2.5-pro \
-  --limit 1
-```
-
-Model support and account access depend on the provider. Native Inspect provider
-settings apply, including `OPENAI_BASE_URL` and `OPENROUTER_BASE_URL` if set.
-See [provider configuration](https://inspect.aisi.org.uk/providers.html).
+All inference goes through OpenRouter. Use `openrouter-cost/<OpenRouter model ID>`,
+for example `openrouter-cost/google/gemini-2.5-pro`. The small adapter in
+[openrouter_cost.py](openrouter_cost.py) extends Inspect's OpenRouter provider to
+preserve the charge returned by the API. `pip install -r requirements.txt` registers
+this extension with Inspect (rerun it when updating an existing checkout). It uses `OPENROUTER_API_KEY` and supports
+Inspect's OpenRouter options, including `OPENROUTER_BASE_URL`.
+Model availability and reasoning settings depend on the selected model.
 
 ## Results and scoring
 
@@ -114,24 +107,25 @@ CSV output or billing estimator.
 
 ### Recording cost
 
-Pass `--model-cost-config pricing.yaml` to have Inspect calculate USD cost estimates
-and save `total_cost` with sample and run model usage in the `.eval` log. This uses
-Inspect's [native cost configuration](https://inspect.aisi.org.uk/setting-limits.html),
-not a project-specific calculator. Without configured pricing, cost can be absent
-even when token counts are recorded. Existing logs are not retroactively modified.
+Cost is recorded automatically with the `openrouter-cost/` provider. OpenRouter
+returns [`usage.cost`](https://openrouter.ai/docs/cookbook/administration/usage-accounting),
+the amount charged to your account in credits, in each response. The adapter copies
+that value directly into Inspect's `total_cost`: each sample's `output.usage` and
+`model_usage`, and the run's `stats.model_usage`. No pricing file, token-based
+calculation, or extra API request is needed. The raw response retains the billing
+details, including any separate upstream inference cost.
 
-[pricing.yaml](pricing.yaml) records the source URL, verification date, and rates
-for direct OpenAI `gpt-5.6-luna`: $0.20 input, $0.25 cache writes, $0.02 cache reads,
-and $1.20 output per million tokens. These are the
-[Standard short-context rates](https://developers.openai.com/api/docs/pricing).
-Update/add provider-qualified entries for other models or pricing changes;
-OpenRouter and other service tiers may have different rates.
+Use `inspect view` to inspect the logs. Do not pass `--model-cost-config`: Inspect
+would overwrite the returned charge with its calculated estimate. The plain
+`openrouter/` provider currently drops the returned cost in the pinned Inspect
+version; the `openrouter-cost/` prefix enables this adapter.
 
-Inspect separates regular input (`I`), cache writes (`CW`), and cache reads (`CR`).
-Reasoning tokens (`R`) are already included in output (`O`), so they must not be
-charged twice. For example, `I=3, CW=3344, CR=0, O=577` estimates **$0.001529**.
-These are usage-based estimates, not billing receipts; provider charges remain
-authoritative. Keep the pricing-file version with the run's reproducibility record.
+A returned zero is recorded as zero. Missing or invalid costs remain unknown and
+produce a warning; aggregated totals may then be incomplete. These logs account
+for returned successful generations, not an account-wide bill or credit-purchase
+fees. Existing logs are not backfilled. Inspect's live cost-limit enforcement in
+this version relies on configured prices, so do not rely on `--cost-limit` with
+this adapter; set spending limits in OpenRouter instead.
 
 The prompt in `prompt.txt` requests exactly seven string-valued JSON fields:
 
