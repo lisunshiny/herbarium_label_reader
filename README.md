@@ -1,36 +1,22 @@
 # Herbarium Label Reader
 
-Evaluate vision models on historical herbarium labels using
-[Inspect AI](https://inspect.aisi.org.uk/). Each sample sends a whole specimen
-image to a model and scores its structured transcription against reference fields.
+This repo runs the tests behind the
+[Herbarium AI Leaderboard](https://huggingface.co/spaces/lisunshiny/herbarium-ai-leaderboard).
+Each model gets a specimen image and returns label details as JSON. We compare
+those details with reference answers using [Inspect AI](https://inspect.aisi.org.uk/).
 
-This project builds on the research and
-[original implementation](https://github.com/Atlas8008/herbarium_label_reader)
-by Matthias Körschens and collaborators, using specimen scans and catalogue data
-from Herbarium Senckenbergianum Görlitz (GLM). This fork replaces the evaluation
-pipeline with Inspect AI and introduces a different prompt, revised golden
-references, and deterministic field scoring. Its scores are not directly
-comparable with the original paper's results.
+## Research and data
 
-## Original research and data
+This fork builds on research by
+[Körschens and colleagues (2026)](https://doi.org/10.1016/j.ecoinf.2026.103656),
+published in *Ecological Informatics*, and their
+[original code](https://github.com/Atlas8008/herbarium_label_reader).
+It uses [specimen scans and label data](https://doi.org/10.5281/zenodo.17714208)
+from Herbarium Senckenbergianum Görlitz (GLM).
 
-Please cite both the paper and dataset when using this work:
-
-- Matthias Körschens, Solveig Franziska Bucher, Christiane M. Ritz, Sebastian
-  Gebauer, Jens Wesenberg, and Christine Römermann (2026).
-  **Large language vision models for zero-shot handwriting recognition of
-  historical herbarium labels.** *Ecological Informatics*, 94, 103656.
-  [Paper](https://doi.org/10.1016/j.ecoinf.2026.103656).
-- Herbarium Senckenbergianum Görlitz (GLM) (2025).
-  **Herbarium specimens scans (GLM) and associated label data used for zero-shot
-  handwriting recognition of historical herbarium labels**, v1.
-  [Dataset](https://doi.org/10.5281/zenodo.17714208).
-
-The original researchers and data providers supplied the foundation for this
-work: the study, specimen dataset, catalogue references, and upstream software.
-The Inspect implementation and reference revisions are changes made in this fork.
-[CITATION.cff](CITATION.cff) contains the citations. When reporting results from
-this fork, also record its Git commit and the exact reference snapshot used.
+It adds an Inspect AI pipeline, a different prompt, revised reference answers,
+and new scoring rules. These scores are not directly comparable with the paper.
+[CITATION.cff](CITATION.cff) contains the citations.
 
 ## Setup
 
@@ -58,7 +44,7 @@ Set `MODEL_ID` to an OpenRouter vision model ID, then run:
 export MODEL_ID='provider/model-name'
 uv run --locked inspect eval herbarium.py \
   -T dataset_path=/path/to/GLM_scans_mini \
-  -T golden_file=/path/to/handwritten-goldens.json \
+  -T golden_file=references/v1/handwritten.json \
   --model "openrouter-cost/$MODEL_ID" \
   --limit 1
 ```
@@ -85,28 +71,72 @@ including separately reported upstream costs for BYOK requests. Missing billing
 information remains unknown. Do not use `--model-cost-config`, which replaces
 returned charges with estimates, or rely on `--cost-limit` with this adapter.
 
-## Revised golden references
+## Run all 200 specimens
 
-The original catalogue is the starting point for our reference revisions. As the
-[dataset documentation](https://zenodo.org/records/17714208) explains, catalogue
-entries can include information beyond the literal label, and names and dates
-were not fully reverted to the written text. Our prompt asks for information
-supported by the label, so we revised reference fields to match that task.
+The [v1 reference answers](references/v1/README.md) are included in this repo,
+with review records and file hashes. Run both splits with:
 
-The current working goldens combine human-approved corrections and AI-reviewed
-annotations, with image and OCR evidence used during review. Model agreement
-was used in preparing some annotations. These references should not be described
-as an independently human-transcribed gold standard. Notes are marked unknown
-in the current run snapshots and excluded from content scoring, although the
-prompt still requests them.
+```bash
+export DATASET_PATH='/path/to/GLM_scans_mini'
+export GOLDEN_DIR='references/v1'
+export MODEL_ID='provider/model-name'
+export RUN_NAME='my-model-run'
 
-The working goldens and review tooling are local and are not distributed in this
-repository. [goldens.example.json](goldens.example.json) documents the format
-with a synthetic example. To reproduce a run, retain its exact golden file,
-review provenance, and file hash alongside the code revision and model settings.
+for split in handwritten printed; do
+  uv run --locked inspect eval herbarium.py \
+    -T dataset_path="$DATASET_PATH" \
+    -T image_list="data/$split.txt" \
+    -T golden_file="$GOLDEN_DIR/$split.json" \
+    -T max_size=2048 \
+    --model "openrouter-cost/$MODEL_ID" \
+    --log-dir "logs/$RUN_NAME/$split" || break
+done
+```
+
+Change `MODEL_ID` and `RUN_NAME` to test another model. Start with `--limit 1`
+on each split to check that it accepts images and returns the expected JSON.
+These commands make paid API requests and save local logs. They do not upload
+results to the leaderboard.
+
+To repeat a published run, match its code, prompt, reference files, image size,
+provider routing, and model settings. These commands use model defaults; a
+published run may use specific `--reasoning-effort`, `--temperature`,
+`--max-tokens`, or `--max-connections` values. The three models marked with an
+asterisk also need the separate code-fence regrading described above. New runs
+can give different answers even with the same settings.
+
+When sharing results, include both split scores, completed and failed sample
+counts, JSON validity, model settings, code revision, and reference hashes.
+With 100 scored specimens per split, the combined score is the mean of the two
+split scores. Calculate cost per 100 from the samples with recorded charges,
+and state how many charges are missing. Calculate median time across individual
+samples from both splits.
+
+## Reference answers
+
+The original catalogue sometimes includes information beyond what is written on
+the label. Our prompt asks for information supported by the label, so we revised
+the answers used for scoring. The code calls these files “goldens.”
+
+The frozen [v1 references](references/v1/README.md) cover all 200 specimens:
+
+| Labels | Human-approved | AI-reviewed only |
+|---|---:|---:|
+| Handwritten | 10 | 90 |
+| Printed | 70 | 30 |
+
+Review used specimen images, OCR, and model agreement. Some of the models being
+tested helped prepare the answers, including answers later approved by a human.
+These are not independent human transcriptions. The review groups were not
+chosen at random, and most human-approved specimens are printed.
+
+Notes are marked unknown and left out of content scoring, though the prompt
+still asks for them. The reference files include review records and hashes;
+[goldens.example.json](goldens.example.json) shows the format with a made-up
+example. Keep the exact reference files used for each run.
 
 Golden files use `schema_version: 2`, with samples keyed by image filename.
-Each field has one of these statuses:
+Each field has a status:
 
 - `present`: an expected value or list of facts, optionally with accepted alternatives.
 - `absent`: the answer must be empty.
@@ -125,12 +155,12 @@ nine fields: species name, species author, collection date, collector, country,
 state, location, region, and notes. Location and Notes are lists; the other fields
 are strings.
 
-The grader uses field-specific normalization and explicit accepted alternatives.
-It checks the full species name separately from its author and preserves the
-precision of collection dates. Location matching tolerates split or combined
+The grader accounts for formatting differences and listed alternative answers.
+It checks the species name separately from its author and keeps dates at the
+level of detail written on the label. Location matching tolerates split or combined
 facts, recognized MTB grid and elevation notation, and a fixed list of habitat
-and soil terms. Required locality facts and unmatched additions still affect the
-score. The exact normalization and context allowlist are defined in the scorer.
+and soil terms. Missing location details and extra claims still affect the score.
+The full matching rules are in the scorer.
 
 The main metric, `field_accuracy`, averages assessable field scores within each
 specimen; Inspect then reports the mean across specimens. Logs also include
@@ -157,10 +187,3 @@ Raw evaluation logs, local run artifacts, and temporary review tools are ignored
 by Git. Results added to the repository should be curated summaries identifying
 the models, sample counts, settings, code revision, grader version, and reference
 snapshot, with a link to archived logs when available.
-
-## License
-
-Code is licensed under [MIT](LICENSE), retaining the original
-Copyright (c) 2025 Atlas notice. GLM scans and associated label data have a separate
-[CC BY-SA 4.0 license](https://creativecommons.org/licenses/by-sa/4.0/).
-Derived reference annotations retain the dataset attribution and license.

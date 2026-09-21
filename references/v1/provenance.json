@@ -1,0 +1,908 @@
+{
+  "version": "v1",
+  "published_date": "2026-09-20",
+  "license": "CC-BY-SA-4.0",
+  "source_dataset": {
+    "title": "Herbarium specimens scans (GLM) and associated label data used for zero-shot handwriting recognition of historical herbarium labels",
+    "creator": "Herbarium Senckenbergianum Görlitz (GLM)",
+    "doi": "10.5281/zenodo.17714208",
+    "version": "v1"
+  },
+  "annotation_changes_by": "Liann Sun and AI-assisted review in the Herbarium Label Reader Inspect fork",
+  "snapshot_origin": "Byte-for-byte copies of the expanded-20260920 evaluation reference files. Working review files are not included.",
+  "evaluation_code_commit": "077d392",
+  "grader_version": 5,
+  "grader_sha256": "82ddda09cd3a779f38f862745474fab2dce10d4a611daa1e403cb927ec4824e7",
+  "prompt_sha256": "58f6b4fbe2d11571663093a5dafd023ba3589924a59b163c10b3a3bdde7c79f8",
+  "files": {
+    "handwritten.json": {
+      "sha256": "b80a8f6ba671c8d0ff4d54a016351c9dd7638ee163d18969a46747b4ee86bd32",
+      "samples": 100,
+      "review_counts": {
+        "human_approved": 10,
+        "ai_reviewed": 90
+      }
+    },
+    "printed.json": {
+      "sha256": "285e5a40af88b149d4edc28bad067ba6fc5f9ef3fde974b2f1e0a2244ae9c85c",
+      "samples": 100,
+      "review_counts": {
+        "human_approved": 70,
+        "ai_reviewed": 30
+      }
+    }
+  },
+  "review_policy": {
+    "human_approved": "80 specimens with human-approved fields, including model-consensus-assisted decisions; not independent human transcription.",
+    "ai_reviewed": "120 specimens with AI-reviewed fields, not human-approved.",
+    "consensus_models": [
+      "Astra",
+      "Fable",
+      "Gemini"
+    ],
+    "consensus_note": "Names as recorded in the review documentation; evaluated models also contributed to reference construction. Luna did not vote.",
+    "supporting_evidence": "Specimen images, enlarged views, and Google Vision OCR for difficult cases. OCR and model agreement are supporting evidence, not authoritative truth.",
+    "notes": "Notes are unknown for all 200 specimens and excluded from content scores. Some AI-reviewed specimens retain human_review source on Notes as an exclusion marker; this does not imply human approval of that specimen.",
+    "unassessed_fields": "Unknown, unreadable, and uncertain fields remain excluded. All nine fields are explicit, so this snapshot requires no catalogue fallback for field annotations."
+  },
+  "verification_against_regraded_logs": [
+    {
+      "model": "openrouter-cost/openai/gpt-5.6-luna",
+      "split": "handwritten",
+      "samples": 100,
+      "log_sha256": "ef0e9a98ed782ff2def2232bf454e2d3bc748183632868d7de883127773db042",
+      "comparison": "All annotation fields except explanatory reason text match."
+    },
+    {
+      "model": "openrouter-cost/openai/gpt-6-astra",
+      "split": "handwritten",
+      "samples": 100,
+      "log_sha256": "f61ef8d69acfb558d3eb0a274ef1f818572b91027cfed6a0bdb564b8c2fcd157",
+      "comparison": "All annotation fields except explanatory reason text match."
+    },
+    {
+      "model": "openrouter-cost/google/gemini-3.1-pro-preview",
+      "split": "handwritten",
+      "samples": 100,
+      "log_sha256": "0634511ed75b69123fe878165610d01ef0880fc145b0edd46205aedd4c2fba1d",
+      "comparison": "All annotation fields except explanatory reason text match."
+    },
+    {
+      "model": "openrouter-cost/anthropic/claude-fable-5.1",
+      "split": "handwritten",
+      "samples": 100,
+      "log_sha256": "d83187ca456c5db7437311881621b0d76e73f6bba58bd8e369173bbbdee20fe2",
+      "comparison": "All annotation fields except explanatory reason text match."
+    },
+    {
+      "model": "openrouter-cost/openai/gpt-5.6-luna",
+      "split": "printed",
+      "samples": 100,
+      "log_sha256": "56a542d28acfca3eddd7bb76115adee81e7905133641bd43520a4c6dd2b7af0e",
+      "comparison": "All annotation fields except explanatory reason text match."
+    },
+    {
+      "model": "openrouter-cost/openai/gpt-6-astra",
+      "split": "printed",
+      "samples": 100,
+      "log_sha256": "53abf71a9a51859839e3d553863f7564179b0015e2e3de84e2255b383cf990b7",
+      "comparison": "All annotation fields except explanatory reason text match."
+    },
+    {
+      "model": "openrouter-cost/google/gemini-3.1-pro-preview",
+      "split": "printed",
+      "samples": 100,
+      "log_sha256": "cb9307cc73ad824924d41d0c128fe02f38a489ac65814f0f4e051034ffb9d441",
+      "comparison": "All annotation fields except explanatory reason text match."
+    },
+    {
+      "model": "openrouter-cost/anthropic/claude-fable-5.1",
+      "split": "printed",
+      "samples": 100,
+      "log_sha256": "4f062c93749de9e5eb5d039bfa1bf270046c03d8aea61959c01ff62eeedc2b9f",
+      "comparison": "All annotation fields except explanatory reason text match."
+    }
+  ],
+  "samples": {
+    "GLM-14407_Carex_appropinquata.jpg": {
+      "split": "handwritten",
+      "review_category": "human_approved"
+    },
+    "GLM-20343_Ajuga_reptans.jpg": {
+      "split": "handwritten",
+      "review_category": "human_approved"
+    },
+    "GLM-2657_Cuscuta_europaea.jpg": {
+      "split": "handwritten",
+      "review_category": "human_approved"
+    },
+    "GLM-15527_Dactylorhiza_majalis.jpg": {
+      "split": "handwritten",
+      "review_category": "human_approved"
+    },
+    "GLM-9397_Gnaphalium_sylvaticum.jpg": {
+      "split": "handwritten",
+      "review_category": "human_approved"
+    },
+    "GLM-16680_Aconitum_variegatum.jpg": {
+      "split": "handwritten",
+      "review_category": "human_approved"
+    },
+    "GLM-19345_Hippuris_vulgaris.jpg": {
+      "split": "handwritten",
+      "review_category": "human_approved"
+    },
+    "GLM-19697B_Silaum_silaus.jpg": {
+      "split": "handwritten",
+      "review_category": "human_approved"
+    },
+    "GLM-21616_Campanula_cervicaria.jpg": {
+      "split": "handwritten",
+      "review_category": "human_approved"
+    },
+    "GLM-31271A_Viscum_laxum.jpg": {
+      "split": "handwritten",
+      "review_category": "human_approved"
+    },
+    "GLM-11503_Teucrium_scorodonia.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-13175_Hydrocharis_morsus-ranae.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-13827_Festuca_nigrescens.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-14302_Carex_brizoides.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-14408_Carex_appropinquata.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-14582_Carex_flacca.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-14866_Acorus_calamus.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-15020_Juncus_capitatus.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-15322_Potentilla_argentea.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-15443_Coeloglossum_viride.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-15793_Salix_×_doniana.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-15927_Morus_alba.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-166103_Scutellaria_hastifolia.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-166120_Carex_alba.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-166165_Saponaria_ocymoides.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-166191_Saxifraga_aizoides.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-166255_Cakile_maritima.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-16640_Nymphaea_candida.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-17081_Drosera_×_beleziana.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-17260_Nasturtium_microphyllum.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-17549_Rapistrum_perenne.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-1756_Lysimachia_nummularia.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-18457_Lotus_corniculatus_hirsutus.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-18482_Corrigiola_litoralis.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-18612_Vicia_hirsuta.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-18635_Lathyrus_palustris.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-18856_Euphorbia_lucida.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-18888_Mercurialis_perennis.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-19279_Viola_×_scabra.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-19555_Anthriscus_nitida.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-19557_Scandix_pecten-veneris.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-19597_Apium_inundatum.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-19697A_Silaum_silaus.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-19739_Pastinaca_sativa.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-20430_Galeobdolon_montanum.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-20482_Leonurus_marrubiastrum.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-20729_Solanum_nigrum_atriplicifolium.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-21341_Galium_glaucum.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-21595_Phyteuma_orbiculare.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-21972_Tanacetum_corymbosum.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-22395_Gentiana_asclepiadea.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-2398_Artemisia_repens.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-24180_Teucrium_scorodonia.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-25736_Chenopodium_polyspermum.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-2676_Lathyrus_niger.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-26979_Trisetum_flavescens.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-28712_Hypericum_maculatum.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-30401_Osmunda_regalis.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-3058_Ranunculus_arvensis.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-31933_Lunaria_rediviva.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-32554_Setaria_viridis_major.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-32624_Matricaria_discoidea.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-32643_Geranium_phaeum_phaeum.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-32811_Ranunculus_polyanthemos_polyanthemos.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-32841_Sparganium_erectum_microcarpum.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-3329_Viola_palustris.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-34173_Eleocharis_vulgaris.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-34269_Geranium_pusillum.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-34277_Elymus_caninus.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-34397_Dianthus_deltoides.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-34905_Salix_eleagnos.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-3574_Hordelymus_europaeus.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-36139_Potamogeton_crispus.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-36282_Cicendia_filiformis.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-37171B_Silphium_perfoliatum.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-37561_Ranunculus_sceleratus.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-37996_Campanula_persicifolia.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-38307_Poa_supina.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-38880_Saponaria_officinalis.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-38912_Lotus_corniculatus_corniculatus.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-39434_Carlina_vulgaris.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-408_Leucojum_aestivum.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-41408_Galium_intermedium.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-41608_Orobanche_purpurea.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-42049_Geranium_molle.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-42068_Nardus_stricta.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-42204_Bellis_perennis.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-42324_Campanula_latifolia.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-454_Bothriochloa_ischaemum.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-46110_Asplenium_septentrionale.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-50682_Satureja_hortensis.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-50752_Sanvitalia_procumbens.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-592_Alopecurus_pratensis.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-6560_Bromus_tectorum.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-6563_Bromus_squarrosus_villosus.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-7304_Eleocharis_ovata.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-7486_Spiranthes_spiralis.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-77_Amaranthus_retroflexus.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-9250_Cicuta_virosa.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-9717_Silene_×_hampeana.jpg": {
+      "split": "handwritten",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-48340_Listera_ovata.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-45542_Taraxacum_prasinum.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-40955_Potentilla_neumanniana.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-28656B_Oenothera_issleri.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-34414_Lepidium_draba.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-6510_Carex_canescens.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-45277B_Oenothera_hoelscheri.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-47840_Lycium_barbarum.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-48680_Myosotis_discolor.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-165801_Populus_trichocarpa.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-10622_Dryopteris_filix-mas.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-11361_Amaranthus_bouchonii.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-12138_Centaurea_jacea_jacea.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-12181_Stellaria_graminea.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-126_Utricularia_intermedia.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-1362B_Coronilla_scorpioides.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-165552_Satureja_montana.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-165592_Adonis_vernalis.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-165602_Cyanus_montanus.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-165635_Hippocrepis_comosa.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-165729_Triglochin_maritima.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-16678B_Consolida_hispanica.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-17899_Potentilla_×_suberecta.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-20569_Thymus_serpyllum.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-2202_Stachys_arvensis.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-23605_Setaria_pumila.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-23817_Salvia_verticillata.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-26482A_Rumex_obtusifolius_obtusifolius.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-26730_Avena_sativa.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-27471_Bromus_hordeaceus_hordeaceus.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-29253A_Oenothera_mediomarchica.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-30199_Lactuca_serriola.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-30318_Veronica_hederifolia.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-30749_Guizotia_abyssinica.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-30777_Salsola_tragus.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-32604_Salix_×_rubens.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-33154_Aegopodium_podagraria.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-33566_Polygonum_arenastrum_arenastrum.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-33860_Persicaria_amphibia.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-33918_Lobularia_maritima.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-34623_Chelidonium_majus.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-35382_Nymphoides_peltata.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-35455_Cornus_alba.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-35750_Lactuca_serriola.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-37046_Acer_pseudoplatanus.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-37417_Nicotiana_rustica.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-37943_Potamogeton_alpinus.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-39019_Barbarea_vulgaris.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-39243_Oenanthe_aquatica.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-39556_Salix_fragilis.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-39634_Centaurium_pulchellum.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-39856_Campanula_glomerata.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-39968_Spiraea_tomentosa.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-40290_Epilobium_dodonaei.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-40647_Centaurium_erythraea.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-40665_Carex_acuta.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-40740_Carex_panicea.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-41241_Anthemis_tinctoria.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-41750_Carex_pseudocyperus.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-42410_Galium_palustre_elongatum.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-42470_Verbascum_phlomoides.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-42538_Bunias_orientalis.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-42565_Hypochaeris_glabra.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-42697_Dysphania_schraderiana.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-43010_Briza_media.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-43946_Chimaphila_umbellata.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-43979_Chenopodium_foliosum.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-44343_Campanula_rapunculus.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-44458_Juncus_alpinoarticulatus.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-44756_Cirsium_arvense.jpg": {
+      "split": "printed",
+      "review_category": "human_approved"
+    },
+    "GLM-44893_Taraxacum_amplum.jpg": {
+      "split": "printed",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-45407_Cardamine_pratensis.jpg": {
+      "split": "printed",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-45411_Vincetoxicum_hirundinaria.jpg": {
+      "split": "printed",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-45585_Vicia_villosa_villosa.jpg": {
+      "split": "printed",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-45855A_Leonurus_cardiaca.jpg": {
+      "split": "printed",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-46070_Taraxacum_amplum.jpg": {
+      "split": "printed",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-46581_Helictotrichon_pubescens.jpg": {
+      "split": "printed",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-46667_Bryonia_alba.jpg": {
+      "split": "printed",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-46693A_Aconitum_variegatum.jpg": {
+      "split": "printed",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-46830_Rorippa_palustris.jpg": {
+      "split": "printed",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-47086_Plantago_major_major.jpg": {
+      "split": "printed",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-47156_Symphytum_×_uplandicum.jpg": {
+      "split": "printed",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-47731_Vulpia_myuros.jpg": {
+      "split": "printed",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-47773_Digitalis_purpurea.jpg": {
+      "split": "printed",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-48107_Oxalis_dillenii.jpg": {
+      "split": "printed",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-48251_Amelanchier_spicata.jpg": {
+      "split": "printed",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-48559_Phragmites_australis.jpg": {
+      "split": "printed",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-48685_Alopecurus_aequalis.jpg": {
+      "split": "printed",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-48694_Scorzonera_hispanica.jpg": {
+      "split": "printed",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-48853_Petrorhagia_prolifera.jpg": {
+      "split": "printed",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-49101_Rumex_patientia.jpg": {
+      "split": "printed",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-49148_Taraxacum_guttigestans.jpg": {
+      "split": "printed",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-49482_Pulmonaria_obscura.jpg": {
+      "split": "printed",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-49510_Carex_flava.jpg": {
+      "split": "printed",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-49543_Myosotis_laxa.jpg": {
+      "split": "printed",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-49615_Potamogeton_trichoides.jpg": {
+      "split": "printed",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-49621_Erechtites_hieraciifolius.jpg": {
+      "split": "printed",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-7755_Glaucium_corniculatum.jpg": {
+      "split": "printed",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-8321_Veronica_catenata.jpg": {
+      "split": "printed",
+      "review_category": "ai_reviewed"
+    },
+    "GLM-9619_Malva_pusilla.jpg": {
+      "split": "printed",
+      "review_category": "ai_reviewed"
+    }
+  }
+}
