@@ -14,9 +14,22 @@ published in *Ecological Informatics*, and their
 It uses [specimen scans and label data](https://doi.org/10.5281/zenodo.17714208)
 from Herbarium Senckenbergianum Görlitz (GLM).
 
-It adds an Inspect AI pipeline, a different prompt, revised reference answers,
-and new scoring rules. These scores are not directly comparable with the paper.
-[CITATION.cff](CITATION.cff) contains the citations.
+We substantially revised the reference answers (goldens), prompt, and evaluation
+methods, including the scoring rules, and run the evaluation with Inspect AI.
+These results evaluate this fork's task and are not directly comparable with the
+original paper. These changes and results are our own, not those of the original
+authors.
+
+Please cite the original paper when using its dataset, code, or methods. When
+using this fork, also identify this repository, the commit, and the reference
+version used.
+
+Körschens, M., Bucher, S. F., Ritz, C. M., Gebauer, S., Wesenberg, J., & Römermann,
+C. (2026). Large language vision models for zero-shot handwriting recognition of
+historical herbarium labels. *Ecological Informatics, 94*, 103656.
+[https://doi.org/10.1016/j.ecoinf.2026.103656](https://doi.org/10.1016/j.ecoinf.2026.103656)
+
+[CITATION.cff](CITATION.cff) contains the paper and dataset citations.
 
 ## Setup
 
